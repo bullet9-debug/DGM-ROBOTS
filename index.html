@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Field Diary (Team)</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #EEEBE2;
+    --paper-raised: #F7F5EE;
+    --ink: #1E2620;
+    --ink-soft: #52584F;
+    --line: #C9C3B3;
+    --line-soft: #DAD5C6;
+    --green: #3F6B4C;
+    --green-soft: #E4ECE4;
+    --steel: #4E6373;
+    --steel-soft: #E6ECEF;
+    --amber: #B9812E;
+    --amber-soft: #F3E6CD;
+    --danger: #A5433A;
+    --danger-soft: #F3DEDA;
+    --shadow: 0 1px 2px rgba(30,38,32,0.08), 0 4px 14px rgba(30,38,32,0.06);
+    --radius: 3px;
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --paper: #1B1E19;
+      --paper-raised: #232720;
+      --ink: #EDEAE0;
+      --ink-soft: #A9AB9E;
+      --line: #3B3F35;
+      --line-soft: #2D3128;
+      --green: #7FAE8B;
+      --green-soft: #24312A;
+      --steel: #8FB2C4;
+      --steel-soft: #202B31;
+      --amber: #D7A754;
+      --amber-soft: #33291A;
+      --danger: #D98A80;
+      --danger-soft: #33221F;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 14px rgba(0,0,0,0.25);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #1B1E19;
+    --paper-raised: #232720;
+    --ink: #EDEAE0;
+    --ink-soft: #A9AB9E;
+    --line: #3B3F35;
+    --line-soft: #2D3128;
+    --green: #7FAE8B;
+    --green-soft: #24312A;
+    --steel: #8FB2C4;
+    --steel-soft: #202B31;
+    --amber: #D7A754;
+    --amber-soft: #33291A;
+    --danger: #D98A80;
+    --danger-soft: #33221F;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 14px rgba(0,0,0,0.25);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    min-height: 100vh;
+  }
+  h1, h2, h3, .display { font-family: 'Space Grotesk', 'Inter', sans-serif; }
+
+  button {
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    border: 1px solid var(--line);
+    background: var(--paper-raised);
+    color: var(--ink);
+    border-radius: var(--radius);
+    padding: 7px 12px;
+  }
+  button:hover { border-color: var(--ink-soft); }
+  button:focus-visible, [tabindex]:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--green); outline-offset: 1px;
+  }
+  button.primary { background: var(--green); color: var(--paper-raised); border-color: var(--green); }
+  button.primary:hover { filter: brightness(1.06); }
+  button.ghost { background: transparent; border-color: transparent; }
+  button.ghost:hover { background: var(--paper-raised); border-color: var(--line); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  input, select, textarea {
+    font-family: inherit;
+    font-size: 13px;
+    background: var(--paper-raised);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 7px 9px;
+    width: 100%;
+  }
+  label { font-size: 12px; color: var(--ink-soft); display: block; margin-bottom: 4px; }
+  .field { margin-bottom: 12px; }
+  .field-row { display: flex; gap: 10px; }
+  .field-row .field { flex: 1; }
+
+  /* ===== Shell ===== */
+  .shell { display: flex; min-height: 100vh; }
+  .rail {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--paper-raised);
+    border-right: 1px solid var(--line);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .brand { display: flex; flex-direction: column; gap: 2px; }
+  .brand .display { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand .sub { font-size: 12px; color: var(--ink-soft); }
+
+  .rail-section .rail-title {
+    font-size: 11px;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .lane-toggle {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 8px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    border: 1px solid transparent;
+    margin-bottom: 3px;
+  }
+  .lane-toggle:hover { background: var(--paper); }
+  .lane-toggle input { width: auto; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .lane-name { flex: 1; font-size: 13px; }
+  .lane-edit {
+    font-size: 12px; padding: 3px 5px; width: auto; border: none; background: transparent;
+    font-weight: 600; color: var(--ink);
+  }
+  .lane-edit:focus { background: var(--paper); border: 1px solid var(--line); }
+
+  .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
+  .rail-foot button { width: 100%; text-align: left; font-size: 12px; }
+
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px; border-bottom: 1px solid var(--line);
+    background: var(--paper-raised);
+    gap: 16px; flex-wrap: wrap;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 14px; }
+  .nav-group { display: flex; align-items: center; gap: 4px; }
+  .nav-group button { padding: 6px 10px; }
+  .period-label { font-size: 17px; font-weight: 600; font-family: 'Space Grotesk'; min-width: 190px; }
+  .view-switch { display: flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .view-switch button { border: none; border-radius: 0; border-right: 1px solid var(--line); }
+  .view-switch button:last-child { border-right: none; }
+  .view-switch button.active { background: var(--green); color: var(--paper-raised); }
+
+  .content { flex: 1; padding: 20px 24px; overflow: auto; }
+
+  /* ===== Month view ===== */
+  .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+  .month-dow { font-size: 11px; color: var(--ink-soft); text-align: left; padding: 6px 8px; border-right: 1px solid var(--line); font-weight: 600; }
+  .month-cell {
+    border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    min-height: 96px; padding: 6px; cursor: pointer; background: var(--paper-raised);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .month-cell:hover { background: var(--paper); }
+  .month-cell.out { background: var(--paper); opacity: 0.45; }
+  .month-cell.today { box-shadow: inset 0 0 0 2px var(--green); }
+  .month-date { font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+  .month-date .cap-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); display: none; }
+  .month-date.over .cap-dot { display: block; }
+  .chip {
+    font-size: 11px; padding: 2px 6px; border-radius: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border-left: 3px solid; line-height: 1.5;
+  }
+  .chip-more { font-size: 10px; color: var(--ink-soft); padding: 0 6px; }
+
+  /* ===== Week / Day (swimlane) ===== */
+  .swim-wrap { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--paper-raised); }
+  .swim-head { display: grid; }
+  .swim-head-cell {
+    padding: 10px 12px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line-soft);
+    font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .swim-head-cell:last-child { border-right: none; }
+  .day-col-label { display: flex; flex-direction: column; gap: 1px; }
+  .day-col-label .dow { font-size: 11px; color: var(--ink-soft); font-weight: 500; }
+  .cap-bar { height: 4px; border-radius: 2px; background: var(--line-soft); overflow: hidden; width: 60px; }
+  .cap-bar-fill { height: 100%; background: var(--green); }
+  .cap-bar-fill.over { background: var(--danger); }
+  .cap-pct { font-size: 10px; color: var(--ink-soft); }
+
+  .swim-body { display: grid; }
+  .swim-row { display: grid; border-bottom: 1px solid var(--line-soft); }
+  .swim-row:last-child { border-bottom: none; }
+  .swim-row-label {
+    padding: 10px 12px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 7px;
+    border-right: 1px solid var(--line-soft); background: var(--paper);
+  }
+  .swim-cell {
+    border-right: 1px solid var(--line-soft); padding: 6px; min-height: 64px;
+    display: flex; flex-direction: column; gap: 5px; cursor: pointer;
+  }
+  .swim-cell:last-child { border-right: none; }
+  .swim-cell:hover { background: var(--paper); }
+
+  .job-block {
+    border-radius: var(--radius); padding: 6px 8px; font-size: 12px; border-left: 3px solid; cursor: pointer;
+    background: var(--paper);
+  }
+  .job-block:hover { filter: brightness(0.97); }
+  .job-time { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .job-cust { font-weight: 500; }
+  .job-meta { color: var(--ink-soft); font-size: 11px; }
+
+  /* Day view detail lanes */
+  .day-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .day-lane { border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-raised); overflow: hidden; }
+  .day-lane-head { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: between; gap: 8px; }
+  .day-lane-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
+  .day-lane-body .empty-hint { font-size: 12px; color: var(--ink-soft); font-style: italic; padding: 4px 2px; }
+
+  /* ===== Modal ===== */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(20,24,18,0.42); display: none;
+    align-items: flex-start; justify-content: center; padding: 5vh 16px; overflow: auto; z-index: 50;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    background: var(--paper-raised); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow);
+    width: 100%; max-width: 480px; padding: 22px;
+  }
+  .modal h2 { font-size: 16px; margin: 0 0 16px; }
+  .modal-actions { display: flex; justify-content: space-between; margin-top: 18px; gap: 8px; }
+  .modal-actions .right { display: flex; gap: 8px; }
+
+  .outlook-box {
+    border: 1px dashed var(--line); border-radius: var(--radius); padding: 10px 12px; margin-top: 4px; margin-bottom: 14px;
+    background: var(--paper);
+  }
+  .outlook-box .ol-title { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .outlook-box .ol-status { font-size: 11px; color: var(--ink-soft); }
+  .badge-soon { font-size: 10px; background: var(--amber-soft); color: var(--amber); padding: 1px 6px; border-radius: 8px; font-weight: 600; }
+
+  .status-pill { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; display: inline-block; }
+  .status-planned { background: var(--steel-soft); color: var(--steel); }
+  .status-sent { background: var(--amber-soft); color: var(--amber); }
+  .status-confirmed { background: var(--green-soft); color: var(--green); }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--ink-soft); }
+  .empty-state .display { font-size: 16px; color: var(--ink); margin-bottom: 6px; }
+
+  @media (max-width: 860px) {
+    .shell { flex-direction: column; }
+    .rail { width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; border-right: none; border-bottom: 1px solid var(--line); }
+    .rail-foot { margin-top: 0; flex-direction: row; }
+    .day-lanes { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="brand">
+      <div class="display">Field Diary</div>
+      <div class="sub">Installs · site visits · workshop</div>
+    </div>
+
+    <div class="rail-section">
+      <div class="rail-title">TEAM &amp; CAPACITY</div>
+      <div id="laneToggles"></div>
+    </div>
+
+    <div class="rail-section" id="settingsSection">
+      <div class="rail-title">SETTINGS</div>
+      <div class="field-row" style="margin-bottom:8px;">
+        <div class="field" style="margin-bottom:0;">
+          <label for="workDayStart">Day starts</label>
+          <input id="workDayStart" type="time">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label for="workDayEnd">Techs back by</label>
+          <input id="workDayEnd" type="time">
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label for="travelBuffer">Default travel buffer (min)</label>
+        <input id="travelBuffer" type="number" step="5" min="0">
+      </div>
+    </div>
+
+    <div class="rail-foot">
+      <button class="ghost" id="exportBtn">Export backup (.json)</button>
+      <div id="whoami" style="font-size:12px; color:var(--ink-soft); padding:4px 2px;"></div>
+      <button class="ghost" id="signOutBtn" style="display:none;">Change access code</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="nav-group">
+          <button class="ghost" id="prevBtn" aria-label="Previous">&larr;</button>
+          <button class="ghost" id="todayBtn">Today</button>
+          <button class="ghost" id="nextBtn" aria-label="Next">&rarr;</button>
+        </div>
+        <div class="period-label" id="periodLabel"></div>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <label id="teamToggleWrap" style="display:none; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft);">
+          <input type="checkbox" id="teamToggle" style="width:auto;"> Show whole team
+        </label>
+        <div class="view-switch">
+          <button data-view="month">Month</button>
+          <button data-view="week">Week</button>
+          <button data-view="day">Day</button>
+        </div>
+        <button class="primary" id="newJobBtn">+ New job</button>
+      </div>
+    </div>
+
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div class="overlay open" id="loginGate" style="z-index:100;"></div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="modalTitle">New job</h2>
+    <input type="hidden" id="jobId">
+
+    <div class="field-row">
+      <div class="field">
+        <label for="f_jobnum">Job number</label>
+        <input type="text" id="f_jobnum" placeholder="e.g. 10482">
+      </div>
+      <div class="field">
+        <label for="f_date">Date</label>
+        <input type="date" id="f_date">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="f_time">Start time</label>
+        <input type="time" id="f_time">
+      </div>
+      <div class="field">
+        <label for="f_travel">Travel buffer (min)</label>
+        <input type="number" id="f_travel" min="0" step="5">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="f_duration">Estimated duration</label>
+        <select id="f_duration"></select>
+      </div>
+      <div class="field">
+        <label for="f_lane">Assigned to</label>
+        <select id="f_lane"></select>
+      </div>
+    </div>
+
+    <div class="field" id="apprenticeField" style="display:none;">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="f_apprentice" style="width:auto;"> Apprentice riding along
+      </label>
+    </div>
+
+    <div class="field">
+      <label for="f_type">Job type</label>
+      <select id="f_type">
+        <option value="install">Install</option>
+        <option value="site_visit">Site visit / repair</option>
+        <option value="workshop">Workshop (can't be fixed on site)</option>
+        <option value="demo">Demo</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="f_customer">Customer</label>
+      <input type="text" id="f_customer" placeholder="Customer or site name">
+    </div>
+
+    <div class="field">
+      <label for="f_address">Address / postcode</label>
+      <input type="text" id="f_address" placeholder="For drive-time estimates later">
+    </div>
+
+    <div class="field">
+      <label for="f_notes">Notes</label>
+      <textarea id="f_notes" rows="2"></textarea>
+    </div>
+
+    <div class="field">
+      <label for="f_status">Status</label>
+      <select id="f_status">
+        <option value="planned">Planned</option>
+        <option value="sent">Date sent to customer</option>
+        <option value="confirmed">Confirmed</option>
+      </select>
+    </div>
+
+    <div class="outlook-box">
+      <div class="ol-title">Outlook confirmation <span class="badge-soon">Coming soon</span></div>
+      <div class="ol-status">Not connected yet — once linked, sending a date here will email the customer and pick up their reply automatically. For now, use the Status field above to track this manually.</div>
+      <div style="margin-top:8px; display:flex; gap:8px;">
+        <button disabled title="Connect Outlook to enable">Send date by email</button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="ghost" id="deleteJobBtn" style="color:var(--danger);">Delete</button>
+      <div class="right">
+        <button class="ghost" id="cancelBtn">Cancel</button>
+        <button class="primary" id="saveJobBtn">Save job</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ====== CONFIGURE THESE TWO VALUES from your Supabase project (Settings -> API) ======
+  const SUPABASE_URL = "YOUR_SUPABASE_URL";        // e.g. https://xxxxxxxx.supabase.co
+  const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+  // =======================================================================================
+
+  const FALLBACK_LANES = [
+    { id: "tech1", name: "Tech 1", color: "#E0A526", sort_order: 1 },
+    { id: "tech2", name: "Tech 2", color: "#C1443A", sort_order: 2 },
+    { id: "workshop", name: "Workshop", color: "#6B5B8E", sort_order: 3 }
+  ];
+
+  const DURATION_OPTIONS = [15,30,45,60,90,120,150,180,210,240,270,300,330,360,390,420,450,480,540];
+  function formatDuration(mins, workDayMins) {
+    if (mins === 240) return "4hr (half day)";
+    if (workDayMins && mins === workDayMins) return `${(mins/60).toFixed(mins%60?1:0)}hr (all day)`;
+    if (mins === 480) return "8hr";
+    const h = Math.floor(mins/60), m = mins%60;
+    if (h === 0) return `${m}min`;
+    if (m === 0) return `${h}hr`;
+    return `${h}hr ${m}min`;
+  }
+  const DEFAULT_DURATION_BY_TYPE = { install: 240, site_visit: 120, workshop: 120 };
+
+  function timeToMins(t) { if (!t) return null; const [h,m] = t.split(":").map(Number); return h*60+m; }
+  function minsToClock(m) { const h24 = Math.floor(m/60)%24, mm = m%60; const ap = h24>=12?"pm":"am"; let h12 = h24%12; if (h12===0) h12=12; return `${h12}:${String(mm).padStart(2,"0")}${ap}`; }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+  function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
+  function fmtISODate(d) { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${day}`; }
+  function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate()+n); return x; }
+  function startOfWeek(d) { const x = startOfDay(d); const day = (x.getDay()+6)%7; return addDays(x, -day); }
+  function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function escapeAttr(s) { return String(s).replace(/"/g, "&quot;"); }
+  function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+  function typeLabel(t) { return t === "install" ? "Install" : t === "workshop" ? "Workshop" : t === "demo" ? "Demo" : "Site visit"; }
+  function statusLabel(s) { return s === "confirmed" ? "Confirmed" : s === "sent" ? "Sent" : "Planned"; }
+
+  // ---------- App state ----------
+  let sb = null;                  // supabase client
+  let session = null;             // { id, name, laneId, isAdmin }
+  let state = {
+    lanes: FALLBACK_LANES.slice(),
+    jobs: [],
+    workDayStart: localStorage.getItem("fd.workDayStart") || "08:00",
+    workDayEnd: localStorage.getItem("fd.workDayEnd") || "17:00",
+    workDayMins: 540,
+    travelBuffer: Number(localStorage.getItem("fd.travelBuffer")) || 30,
+    activeLanes: []
+  };
+  function recomputeWorkDayMins() {
+    const m = timeToMins(state.workDayEnd) - timeToMins(state.workDayStart);
+    state.workDayMins = m > 0 ? m : 540;
+  }
+  recomputeWorkDayMins();
+
+  let currentView = "month";
+  let cursorDate = startOfDay(new Date());
+  let modalIsNewJob = true;
+
+  function laneById(id) { return state.lanes.find(l => l.id === id); }
+  function jobsOn(dateStr) { return state.jobs.filter(j => j.date === dateStr); }
+
+  // ---------- Supabase mapping ----------
+  function dbJobToApp(r) {
+    return {
+      id: r.id, jobNumber: r.job_number || "", date: r.date, time: r.start_time ? r.start_time.slice(0,5) : "",
+      duration: r.duration_mins || 0, travel: r.travel_mins || 0, lane: r.lane_id, apprentice: !!r.apprentice,
+      type: r.type, customer: r.customer || "", address: r.address || "", notes: r.notes || "",
+      status: r.status || "planned", outlookStatus: r.outlook_status || "not_connected", outlookThreadId: r.outlook_thread_id || null
+    };
+  }
+  function appJobToDb(j) {
+    return {
+      job_number: j.jobNumber || null, date: j.date, start_time: j.time || null,
+      duration_mins: j.duration || 0, travel_mins: j.travel || 0, lane_id: j.lane, apprentice: !!j.apprentice,
+      type: j.type, customer: j.customer || null, address: j.address || null, notes: j.notes || null,
+      status: j.status || "planned"
+    };
+  }
+
+  // ---------- Access gate ----------
+  async function checkAccess(code) {
+    const { data, error } = await sb.from("techs").select("*").eq("access_code", code).maybeSingle();
+    if (error || !data) return null;
+    return { id: data.id, name: data.name, laneId: data.lane_id, isAdmin: !!data.is_admin };
+  }
+
+  async function boot() {
+    if (SUPABASE_URL.startsWith("YOUR_") || SUPABASE_ANON_KEY.startsWith("YOUR_")) {
+      document.getElementById("loginGate").innerHTML = `
+        <div class="modal" style="max-width:420px;">
+          <h2>Not set up yet</h2>
+          <p style="font-size:13px;color:var(--ink-soft);">This page needs its Supabase URL and anon key filled in near the top of the script before it can connect. See the setup instructions you were given alongside this file.</p>
+        </div>`;
+      return;
+    }
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const params = new URLSearchParams(location.search);
+    const urlCode = params.get("code");
+    if (urlCode) {
+      const found = await checkAccess(urlCode);
+      if (found) { session = found; await afterLogin(); return; }
+    }
+    showLoginForm(urlCode ? "That code wasn't recognised — try again." : "");
+  }
+
+  function showLoginForm(errorMsg) {
+    const gate = document.getElementById("loginGate");
+    gate.innerHTML = `
+      <div class="modal" style="max-width:360px;">
+        <h2>Field Diary</h2>
+        <div class="field">
+          <label for="loginCode">Access code</label>
+          <input type="text" id="loginCode" placeholder="Enter your code" autocomplete="off">
+        </div>
+        <div id="loginError" style="color:var(--danger); font-size:12px; margin-bottom:10px; ${errorMsg?"":"display:none;"}">${escapeHtml(errorMsg||"")}</div>
+        <button class="primary" id="loginBtn" style="width:100%;">Continue</button>
+      </div>`;
+    const submit = async () => {
+      const code = document.getElementById("loginCode").value.trim();
+      if (!code) return;
+      const found = await checkAccess(code);
+      if (found) {
+        session = found;
+        history.replaceState(null, "", location.pathname + "?code=" + encodeURIComponent(code));
+        await afterLogin();
+      } else {
+        showLoginForm("That code wasn't recognised — try again.");
+      }
+    };
+    document.getElementById("loginBtn").addEventListener("click", submit);
+    document.getElementById("loginCode").addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+  }
+
+  async function afterLogin() {
+    document.getElementById("loginGate").classList.remove("open");
+    document.getElementById("whoami").textContent = `${session.name}${session.isAdmin ? " · Office" : ""}`;
+    document.getElementById("signOutBtn").style.display = "inline-block";
+
+    // Non-admins default to seeing only their own lane; everyone can toggle to see the whole team.
+    document.getElementById("teamToggleWrap").style.display = session.isAdmin ? "none" : "flex";
+    if (!session.isAdmin && session.laneId) {
+      state.activeLanes = [session.laneId];
+    }
+
+    // Settings + Outlook box + New job button are office-only for now.
+    document.getElementById("settingsSection").style.display = session.isAdmin ? "" : "none";
+    document.getElementById("newJobBtn").style.display = session.isAdmin ? "" : "none";
+
+    await loadLanes();
+    await loadJobs();
+    subscribeRealtime();
+    render();
+  }
+
+  async function loadLanes() {
+    const { data, error } = await sb.from("lanes").select("*").order("sort_order");
+    if (!error && data && data.length) state.lanes = data;
+    if (!state.activeLanes.length) state.activeLanes = state.lanes.map(l => l.id);
+  }
+  async function loadJobs() {
+    const { data, error } = await sb.from("jobs").select("*").order("date").order("start_time");
+    if (!error && data) state.jobs = data.map(dbJobToApp);
+  }
+  function subscribeRealtime() {
+    sb.channel("jobs-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, async () => { await loadJobs(); render(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "lanes" }, async () => { await loadLanes(); render(); })
+      .subscribe();
+  }
+
+  // ---------- Capacity ----------
+  function laneMinutesOn(dateStr, laneId) {
+    return jobsOn(dateStr).filter(j => j.lane === laneId).reduce((sum, j) => sum + (Number(j.duration)||0) + (Number(j.travel)||0), 0);
+  }
+  function dayIsOverCapacity(dateStr) {
+    return state.activeLanes.some(laneId => laneId !== "workshop" && laneMinutesOn(dateStr, laneId) > state.workDayMins);
+  }
+  function laneFinishTime(dateStr, laneId) {
+    const jobs = jobsOn(dateStr).filter(j => j.lane === laneId);
+    if (!jobs.length) return null;
+    let latest = null;
+    jobs.forEach(j => {
+      const start = timeToMins(j.time) ?? timeToMins(state.workDayStart);
+      const finish = start + (Number(j.duration)||0) + (Number(j.travel)||0);
+      if (latest === null || finish > latest) latest = finish;
+    });
+    return latest;
+  }
+  function laneRunsLate(dateStr, laneId) {
+    if (laneId === "workshop") return false;
+    const finish = laneFinishTime(dateStr, laneId);
+    return finish !== null && finish > timeToMins(state.workDayEnd);
+  }
+  function apprenticeTag(j) {
+    return j.apprentice ? ` <span style="font-size:10px; background:var(--amber-soft); color:var(--amber); padding:1px 5px; border-radius:6px; font-weight:600;">+Apprentice</span>` : "";
+  }
+
+  // ---------- Rail ----------
+  function renderRail() {
+    const wrap = document.getElementById("laneToggles");
+    wrap.innerHTML = "";
+    state.lanes.forEach(lane => {
+      const row = document.createElement("div");
+      row.className = "lane-toggle";
+      row.innerHTML = `
+        <input type="checkbox" ${state.activeLanes.includes(lane.id) ? "checked" : ""} data-lane="${lane.id}">
+        <input type="color" class="lane-color" data-lane-color="${lane.id}" value="${lane.color}" title="Lane colour" style="width:20px;height:20px;padding:0;border:none;background:none;flex-shrink:0;" ${session.isAdmin?"":"disabled"}>
+        <input class="lane-edit" data-lane-name="${lane.id}" value="${escapeAttr(lane.name)}" ${session.isAdmin?"":"disabled"}>
+      `;
+      wrap.appendChild(row);
+    });
+    wrap.querySelectorAll("input[data-lane]").forEach(cb => {
+      cb.addEventListener("change", () => {
+        const id = cb.getAttribute("data-lane");
+        if (cb.checked) { if (!state.activeLanes.includes(id)) state.activeLanes.push(id); }
+        else { state.activeLanes = state.activeLanes.filter(x => x !== id); }
+        render();
+      });
+    });
+    if (session.isAdmin) {
+      wrap.querySelectorAll("input[data-lane-name]").forEach(inp => {
+        inp.addEventListener("change", async () => {
+          const id = inp.getAttribute("data-lane-name");
+          const lane = laneById(id); lane.name = inp.value.trim() || lane.name;
+          await sb.from("lanes").update({ name: lane.name }).eq("id", id);
+          render();
+        });
+      });
+      wrap.querySelectorAll("input[data-lane-color]").forEach(inp => {
+        inp.addEventListener("input", async () => {
+          const id = inp.getAttribute("data-lane-color");
+          const lane = laneById(id); lane.color = inp.value;
+          await sb.from("lanes").update({ color: lane.color }).eq("id", id);
+          render();
+        });
+      });
+    }
+    document.getElementById("workDayStart").value = state.workDayStart;
+    document.getElementById("workDayEnd").value = state.workDayEnd;
+    document.getElementById("travelBuffer").value = state.travelBuffer;
+  }
+
+  // ---------- Top bar ----------
+  function renderTopbar() {
+    document.querySelectorAll(".view-switch button").forEach(b => b.classList.toggle("active", b.dataset.view === currentView));
+    const label = document.getElementById("periodLabel");
+    if (currentView === "month") label.textContent = cursorDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    else if (currentView === "week") {
+      const ws = startOfWeek(cursorDate), we = addDays(ws, 6);
+      label.textContent = `${ws.toLocaleDateString(undefined,{day:"numeric",month:"short"})} – ${we.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})}`;
+    } else label.textContent = cursorDate.toLocaleDateString(undefined, { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+    document.getElementById("teamToggle").checked = state.activeLanes.length > 1;
+  }
+
+  // ---------- Month view ----------
+  function renderMonth() {
+    const el = document.getElementById("content");
+    const first = startOfMonth(cursorDate);
+    const gridStart = startOfWeek(first);
+    const dows = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    let html = `<div class="month-grid">`;
+    dows.forEach(d => html += `<div class="month-dow">${d}</div>`);
+    for (let i=0; i<42; i++) {
+      const d = addDays(gridStart, i);
+      const dateStr = fmtISODate(d);
+      const inMonth = d.getMonth() === first.getMonth();
+      const isToday = fmtISODate(d) === fmtISODate(new Date());
+      const dayJobs = jobsOn(dateStr).filter(j => state.activeLanes.includes(j.lane)).sort((a,b) => (a.time||"").localeCompare(b.time||""));
+      const over = dayIsOverCapacity(dateStr) || state.activeLanes.some(laneId => laneRunsLate(dateStr, laneId));
+      html += `<div class="month-cell ${inMonth?"":"out"} ${isToday?"today":""}" data-date="${dateStr}">
+        <div class="month-date ${over?"over":""}"><span>${d.getDate()}</span><span class="cap-dot" title="Over capacity or a tech running past finish time"></span></div>`;
+      dayJobs.slice(0,3).forEach(j => {
+        const lane = laneById(j.lane) || {color:"#999"};
+        const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} ` : "";
+        html += `<div class="chip" style="border-color:${lane.color}; background:${lane.color}18;" data-job="${j.id}">${j.time?escapeHtml(j.time)+" ":""}${num}${escapeHtml(j.customer||typeLabel(j.type))}</div>`;
+      });
+      if (dayJobs.length > 3) html += `<div class="chip-more">+${dayJobs.length-3} more</div>`;
+      html += `</div>`;
+    }
+    html += `</div>`;
+    el.innerHTML = html;
+    el.querySelectorAll(".chip[data-job]").forEach(c => c.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(c.dataset.job); }));
+    el.querySelectorAll(".month-cell").forEach(cell => cell.addEventListener("click", () => { cursorDate = new Date(cell.dataset.date + "T00:00:00"); currentView = "day"; render(); }));
+  }
+
+  // ---------- Week view ----------
+  function renderWeek() {
+    const el = document.getElementById("content");
+    const ws = startOfWeek(cursorDate);
+    const days = Array.from({length:7}, (_,i) => addDays(ws,i));
+    const lanes = state.lanes.filter(l => state.activeLanes.includes(l.id));
+
+    let head = `<div class="swim-wrap"><div class="swim-head" style="grid-template-columns: 150px repeat(7, 1fr);"><div class="swim-head-cell">Team</div>`;
+    days.forEach(d => {
+      head += `<div class="swim-head-cell"><div class="day-col-label"><span>${d.toLocaleDateString(undefined,{day:"numeric",month:"short"})}</span><span class="dow">${d.toLocaleDateString(undefined,{weekday:"short"})}</span></div></div>`;
+    });
+    head += `</div>`;
+
+    let body = `<div class="swim-body">`;
+    lanes.forEach(lane => {
+      body += `<div class="swim-row" style="grid-template-columns: 150px repeat(7, 1fr);"><div class="swim-row-label"><span class="swatch" style="background:${lane.color}"></span>${escapeHtml(lane.name)}</div>`;
+      days.forEach(d => {
+        const dateStr = fmtISODate(d);
+        const mins = laneMinutesOn(dateStr, lane.id);
+        const pct = lane.id === "workshop" ? null : Math.min(100, Math.round((mins/state.workDayMins)*100));
+        const late = laneRunsLate(dateStr, lane.id);
+        const jobs = jobsOn(dateStr).filter(j => j.lane === lane.id).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+        body += `<div class="swim-cell" data-date="${dateStr}" data-lane="${lane.id}">`;
+        jobs.forEach(j => {
+          const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
+          body += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
+            <div class="job-time">${j.time?escapeHtml(j.time):"—"}</div>
+            <div class="job-cust">${num}${escapeHtml(j.customer||typeLabel(j.type))}${apprenticeTag(j)}</div>
+            <div class="job-meta">${typeLabel(j.type)}</div>
+          </div>`;
+        });
+        if (pct !== null && jobs.length) body += `<div class="cap-bar" title="${pct}% of working day"><div class="cap-bar-fill ${pct>100?"over":""}" style="width:${Math.min(pct,100)}%"></div></div>`;
+        if (late) body += `<div class="job-meta" style="color:var(--danger); font-weight:600;">Back after ${minsToClock(timeToMins(state.workDayEnd))}</div>`;
+        body += `</div>`;
+      });
+      body += `</div>`;
+    });
+    body += `</div></div>`;
+    el.innerHTML = head + body;
+    el.querySelectorAll(".job-block").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
+    if (session.isAdmin) el.querySelectorAll(".swim-cell").forEach(c => c.addEventListener("click", () => openJobModal(null, c.dataset.date, c.dataset.lane)));
+  }
+
+  // ---------- Day view ----------
+  function renderDay() {
+    const el = document.getElementById("content");
+    const dateStr = fmtISODate(cursorDate);
+    const lanes = state.lanes.filter(l => state.activeLanes.includes(l.id));
+
+    let html = `<div class="day-lanes">`;
+    lanes.forEach(lane => {
+      const jobs = jobsOn(dateStr).filter(j => j.lane === lane.id).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+      const mins = laneMinutesOn(dateStr, lane.id);
+      const pct = lane.id === "workshop" ? null : Math.min(999, Math.round((mins/state.workDayMins)*100));
+      html += `<div class="day-lane">
+        <div class="day-lane-head">
+          <span class="swatch" style="background:${lane.color}"></span>
+          <strong style="flex:1;">${escapeHtml(lane.name)}</strong>
+          ${pct!==null ? `<span class="cap-pct">${pct}% of day</span>` : `<span class="cap-pct">${jobs.length} job${jobs.length===1?"":"s"}</span>`}
+        </div>
+        <div class="day-lane-body" data-date="${dateStr}" data-lane="${lane.id}">`;
+      if (!jobs.length) html += `<div class="empty-hint">No jobs${session.isAdmin?" — click to add one":""}</div>`;
+      jobs.forEach(j => {
+        const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
+        html += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
+          <div class="job-time">${j.time?escapeHtml(j.time):"—"} · ${formatDuration(j.duration||0, state.workDayMins)}${j.travel?` (+${j.travel} travel)`:""}</div>
+          <div class="job-cust">${num}${escapeHtml(j.customer||"Untitled job")}${apprenticeTag(j)}</div>
+          <div class="job-meta">${typeLabel(j.type)}${j.address?" · "+escapeHtml(j.address):""}</div>
+          <span class="status-pill status-${j.status||"planned"}" style="margin-top:4px;">${statusLabel(j.status)}</span>
+        </div>`;
+      });
+      if (laneRunsLate(dateStr, lane.id)) html += `<div class="job-meta" style="color:var(--danger); font-weight:600;">Back after ${minsToClock(timeToMins(state.workDayEnd))} at this rate</div>`;
+      html += `</div></div>`;
+    });
+    html += `</div>`;
+    el.innerHTML = html;
+    el.querySelectorAll(".job-block").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
+    if (session.isAdmin) el.querySelectorAll(".day-lane-body").forEach(c => c.addEventListener("click", (e) => { if (e.target.closest(".job-block")) return; openJobModal(null, c.dataset.date, c.dataset.lane); }));
+  }
+
+  function render() {
+    renderRail();
+    renderTopbar();
+    if (currentView === "month") renderMonth();
+    else if (currentView === "week") renderWeek();
+    else renderDay();
+  }
+
+  // ---------- Modal ----------
+  function populateLaneSelect() {
+    const sel = document.getElementById("f_lane");
+    sel.innerHTML = state.lanes.map(l => `<option value="${l.id}">${escapeHtml(l.name)}</option>`).join("");
+  }
+  function populateDurationSelect() {
+    const sel = document.getElementById("f_duration");
+    const opts = DURATION_OPTIONS.slice();
+    if (!opts.includes(state.workDayMins)) opts.push(state.workDayMins);
+    opts.sort((a,b) => a-b);
+    sel.innerHTML = opts.map(m => `<option value="${m}">${formatDuration(m, state.workDayMins)}</option>`).join("");
+  }
+  function defaultDurationForType(type) { return type === "demo" ? state.workDayMins : (DEFAULT_DURATION_BY_TYPE[type] || 60); }
+  function updateApprenticeVisibility() {
+    const lane = document.getElementById("f_lane").value;
+    document.getElementById("apprenticeField").style.display = (lane === "workshop") ? "none" : "";
+  }
+
+  function setModalReadOnly(isAdmin) {
+    const techEditable = new Set(["f_notes"]); // fields techs can still edit on an existing job
+    ["f_jobnum","f_date","f_time","f_travel","f_duration","f_lane","f_type","f_customer","f_address","f_notes","f_status","f_apprentice"]
+      .forEach(id => { document.getElementById(id).disabled = isAdmin ? false : !techEditable.has(id); });
+    document.getElementById("saveJobBtn").style.display = "";
+    document.getElementById("saveJobBtn").textContent = isAdmin ? "Save job" : "Save notes";
+    document.getElementById("deleteJobBtn").style.display = isAdmin ? "inline-block" : "none";
+  }
+
+  function openJobModal(jobId, presetDate, presetLane) {
+    populateLaneSelect();
+    populateDurationSelect();
+    const overlay = document.getElementById("overlay");
+    const job = jobId ? state.jobs.find(j => j.id === jobId) : null;
+    modalIsNewJob = !job;
+    document.getElementById("modalTitle").textContent = job ? "Job details" : "New job";
+    document.getElementById("jobId").value = job ? job.id : "";
+    document.getElementById("f_jobnum").value = job ? (job.jobNumber||"") : "";
+    document.getElementById("f_date").value = job ? job.date : (presetDate || fmtISODate(cursorDate));
+    document.getElementById("f_time").value = job ? (job.time||"") : "";
+    document.getElementById("f_type").value = job ? job.type : "install";
+    document.getElementById("f_duration").value = job ? job.duration : defaultDurationForType(document.getElementById("f_type").value);
+    document.getElementById("f_travel").value = job ? (job.travel ?? state.travelBuffer) : state.travelBuffer;
+    document.getElementById("f_lane").value = job ? job.lane : (presetLane || state.lanes[0].id);
+    document.getElementById("f_apprentice").checked = job ? !!job.apprentice : false;
+    document.getElementById("f_customer").value = job ? (job.customer||"") : "";
+    document.getElementById("f_address").value = job ? (job.address||"") : "";
+    document.getElementById("f_notes").value = job ? (job.notes||"") : "";
+    document.getElementById("f_status").value = job ? (job.status||"planned") : "planned";
+    updateApprenticeVisibility();
+    setModalReadOnly(session.isAdmin);
+    if (!job) document.getElementById("deleteJobBtn").style.display = "none";
+    overlay.classList.add("open");
+  }
+  document.getElementById("f_type").addEventListener("change", (e) => { if (modalIsNewJob) document.getElementById("f_duration").value = defaultDurationForType(e.target.value); });
+  document.getElementById("f_lane").addEventListener("change", updateApprenticeVisibility);
+
+  function closeModal() { document.getElementById("overlay").classList.remove("open"); }
+
+  async function saveJobFromForm() {
+    const id = document.getElementById("jobId").value || null;
+    const date = document.getElementById("f_date").value;
+    if (!date) { alert("Please set a date."); return; }
+    const job = {
+      jobNumber: document.getElementById("f_jobnum").value.trim(),
+      date, time: document.getElementById("f_time").value,
+      duration: Number(document.getElementById("f_duration").value) || 0,
+      travel: Number(document.getElementById("f_travel").value) || 0,
+      lane: document.getElementById("f_lane").value,
+      apprentice: document.getElementById("f_apprentice").checked,
+      type: document.getElementById("f_type").value,
+      customer: document.getElementById("f_customer").value.trim(),
+      address: document.getElementById("f_address").value.trim(),
+      notes: document.getElementById("f_notes").value.trim(),
+      status: document.getElementById("f_status").value
+    };
+    const dbRow = appJobToDb(job);
+    if (id) await sb.from("jobs").update(dbRow).eq("id", id);
+    else await sb.from("jobs").insert(dbRow);
+    await loadJobs(); closeModal(); render();
+  }
+  async function deleteCurrentJob() {
+    const id = document.getElementById("jobId").value;
+    if (!id) return;
+    if (!confirm("Delete this job?")) return;
+    await sb.from("jobs").delete().eq("id", id);
+    await loadJobs(); closeModal(); render();
+  }
+
+  // ---------- Wiring ----------
+  document.querySelectorAll(".view-switch button").forEach(b => b.addEventListener("click", () => { currentView = b.dataset.view; render(); }));
+  document.getElementById("prevBtn").addEventListener("click", () => {
+    if (currentView === "month") cursorDate = new Date(cursorDate.getFullYear(), cursorDate.getMonth()-1, 1);
+    else if (currentView === "week") cursorDate = addDays(cursorDate, -7);
+    else cursorDate = addDays(cursorDate, -1);
+    render();
+  });
+  document.getElementById("nextBtn").addEventListener("click", () => {
+    if (currentView === "month") cursorDate = new Date(cursorDate.getFullYear(), cursorDate.getMonth()+1, 1);
+    else if (currentView === "week") cursorDate = addDays(cursorDate, 7);
+    else cursorDate = addDays(cursorDate, 1);
+    render();
+  });
+  document.getElementById("todayBtn").addEventListener("click", () => { cursorDate = startOfDay(new Date()); render(); });
+  document.getElementById("newJobBtn").addEventListener("click", () => openJobModal(null, fmtISODate(cursorDate)));
+  document.getElementById("cancelBtn").addEventListener("click", closeModal);
+  document.getElementById("saveJobBtn").addEventListener("click", saveJobFromForm);
+  document.getElementById("deleteJobBtn").addEventListener("click", deleteCurrentJob);
+  document.getElementById("overlay").addEventListener("click", (e) => { if (e.target.id === "overlay") closeModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  document.getElementById("workDayStart").addEventListener("change", (e) => { state.workDayStart = e.target.value || "08:00"; localStorage.setItem("fd.workDayStart", state.workDayStart); recomputeWorkDayMins(); render(); });
+  document.getElementById("workDayEnd").addEventListener("change", (e) => { state.workDayEnd = e.target.value || "17:00"; localStorage.setItem("fd.workDayEnd", state.workDayEnd); recomputeWorkDayMins(); render(); });
+  document.getElementById("travelBuffer").addEventListener("change", (e) => { state.travelBuffer = Number(e.target.value)||0; localStorage.setItem("fd.travelBuffer", state.travelBuffer); });
+
+  document.getElementById("exportBtn").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify({ lanes: state.lanes, jobs: state.jobs }, null, 2)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `field-diary-backup-${fmtISODate(new Date())}.json`;
+    a.click();
+  });
+
+  document.getElementById("teamToggle").addEventListener("change", (e) => {
+    state.activeLanes = e.target.checked ? state.lanes.map(l => l.id) : (session.laneId ? [session.laneId] : state.lanes.map(l=>l.id));
+    render();
+  });
+
+  document.getElementById("signOutBtn").addEventListener("click", () => {
+    history.replaceState(null, "", location.pathname);
+    location.reload();
+  });
+
+  boot();
+})();
+
+</script>
+</body>
+</html>
