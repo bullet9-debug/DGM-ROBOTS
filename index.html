@@ -412,6 +412,7 @@
     <div class="field">
       <label for="f_address">Address / postcode</label>
       <input type="text" id="f_address" placeholder="For drive-time estimates later">
+      <a href="#" id="mapsLink" target="_blank" rel="noopener" style="display:none; font-size:12px; margin-top:5px; color:var(--green); text-decoration:none; font-weight:600;">Open in Google Maps ↗</a>
     </div>
 
     <div class="field">
@@ -475,6 +476,7 @@
 
   function timeToMins(t) { if (!t) return null; const [h,m] = t.split(":").map(Number); return h*60+m; }
   function minsToClock(m) { const h24 = Math.floor(m/60)%24, mm = m%60; const ap = h24>=12?"pm":"am"; let h12 = h24%12; if (h12===0) h12=12; return `${h12}:${String(mm).padStart(2,"0")}${ap}`; }
+  function mapsUrl(address) { return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`; }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
   function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
   function fmtISODate(d) { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${day}`; }
@@ -805,7 +807,7 @@
         html += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
           <div class="job-time">${j.time?escapeHtml(j.time):"—"} · ${formatDuration(j.duration||0, state.workDayMins)}${j.travel?` (+${j.travel} travel)`:""}</div>
           <div class="job-cust">${num}${escapeHtml(j.customer||"Untitled job")}${apprenticeTag(j)}</div>
-          <div class="job-meta">${typeLabel(j.type)}${j.address?" · "+escapeHtml(j.address):""}</div>
+          <div class="job-meta">${typeLabel(j.type)}${j.address?` · ${escapeHtml(j.address)} · <a href="${mapsUrl(j.address)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--green); font-weight:600; text-decoration:none;">Maps ↗</a>`:""}</div>
           <span class="status-pill status-${j.status||"planned"}" style="margin-top:4px;">${statusLabel(j.status)}</span>
         </div>`;
       });
@@ -843,6 +845,12 @@
     const lane = document.getElementById("f_lane").value;
     document.getElementById("apprenticeField").style.display = (lane === "workshop") ? "none" : "";
   }
+  function updateMapsLink() {
+    const addr = document.getElementById("f_address").value.trim();
+    const link = document.getElementById("mapsLink");
+    if (addr) { link.href = mapsUrl(addr); link.style.display = ""; }
+    else { link.style.display = "none"; }
+  }
 
   function setModalReadOnly(isAdmin) {
     const techEditable = new Set(["f_notes"]); // fields techs can still edit on an existing job
@@ -871,6 +879,7 @@
     document.getElementById("f_apprentice").checked = job ? !!job.apprentice : false;
     document.getElementById("f_customer").value = job ? (job.customer||"") : "";
     document.getElementById("f_address").value = job ? (job.address||"") : "";
+    updateMapsLink();
     document.getElementById("f_notes").value = job ? (job.notes||"") : "";
     document.getElementById("f_status").value = job ? (job.status||"planned") : "planned";
     updateApprenticeVisibility();
@@ -880,6 +889,7 @@
   }
   document.getElementById("f_type").addEventListener("change", (e) => { if (modalIsNewJob) document.getElementById("f_duration").value = defaultDurationForType(e.target.value); });
   document.getElementById("f_lane").addEventListener("change", updateApprenticeVisibility);
+  document.getElementById("f_address").addEventListener("input", updateMapsLink);
 
   function closeModal() { document.getElementById("overlay").classList.remove("open"); }
 
