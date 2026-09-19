@@ -409,6 +409,22 @@
       <input type="text" id="f_customer" placeholder="Customer or site name">
     </div>
 
+    <div class="field-row">
+      <div class="field">
+        <label for="f_make">Make</label>
+        <input type="text" id="f_make">
+      </div>
+      <div class="field">
+        <label for="f_model">Model</label>
+        <input type="text" id="f_model">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="f_serial">S/N</label>
+      <input type="text" id="f_serial">
+    </div>
+
     <div class="field">
       <label for="f_address">Address / postcode</label>
       <input type="text" id="f_address" placeholder="For drive-time estimates later">
@@ -418,6 +434,29 @@
     <div class="field">
       <label for="f_notes">Notes</label>
       <textarea id="f_notes" rows="2"></textarea>
+    </div>
+
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="f_warranty" style="width:auto;"> Warranty job
+      </label>
+    </div>
+
+    <div class="field-row" id="timerRow" style="display:none;">
+      <div class="field" style="margin-bottom:0;">
+        <label>Travel timer</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span id="travelTimerDisplay" style="font-variant-numeric:tabular-nums; font-weight:600;">0:00:00</span>
+          <button type="button" id="travelTimerBtn" class="ghost" style="padding:5px 9px; font-size:12px;">Start</button>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0;" id="warrantyTimerField">
+        <label>Warranty timer</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span id="warrantyTimerDisplay" style="font-variant-numeric:tabular-nums; font-weight:600;">0:00:00</span>
+          <button type="button" id="warrantyTimerBtn" class="ghost" style="padding:5px 9px; font-size:12px;">Start</button>
+        </div>
+      </div>
     </div>
 
     <div class="field">
@@ -519,6 +558,9 @@
       id: r.id, jobNumber: r.job_number || "", date: r.date, time: r.start_time ? r.start_time.slice(0,5) : "",
       duration: r.duration_mins || 0, travel: r.travel_mins || 0, lane: r.lane_id, apprentice: !!r.apprentice,
       type: r.type, customer: r.customer || "", address: r.address || "", notes: r.notes || "",
+      make: r.make || "", model: r.model || "", serial: r.serial_number || "", warranty: !!r.warranty,
+      travelActualSecs: r.travel_actual_secs || 0, travelRunningSince: r.travel_running_since || null,
+      warrantyActualSecs: r.warranty_actual_secs || 0, warrantyRunningSince: r.warranty_running_since || null,
       status: r.status || "planned", outlookStatus: r.outlook_status || "not_connected", outlookThreadId: r.outlook_thread_id || null
     };
   }
@@ -527,9 +569,56 @@
       job_number: j.jobNumber || null, date: j.date, start_time: j.time || null,
       duration_mins: j.duration || 0, travel_mins: j.travel || 0, lane_id: j.lane, apprentice: !!j.apprentice,
       type: j.type, customer: j.customer || null, address: j.address || null, notes: j.notes || null,
+      make: j.make || null, model: j.model || null, serial_number: j.serial || null, warranty: !!j.warranty,
       status: j.status || "planned"
     };
   }
+  function formatElapsed(totalSecs) {
+    totalSecs = Math.max(0, Math.floor(totalSecs||0));
+    const h = Math.floor(totalSecs/3600), m = Math.floor((totalSecs%3600)/60), s = totalSecs%60;
+    return `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  }
+  function currentElapsed(baseSecs, runningSinceIso) {
+    let secs = baseSecs || 0;
+    if (runningSinceIso) secs += (Date.now() - new Date(runningSinceIso).getTime()) / 1000;
+    return secs;
+  }
+  let timerTickHandle = null;
+  function stopTimerTick() { if (timerTickHandle) { clearInterval(timerTickHandle); timerTickHandle = null; } }
+  function refreshTimerDisplays() {
+    const id = document.getElementById("jobId").value;
+    const job = state.jobs.find(j => j.id === id);
+    if (!job) return;
+    document.getElementById("travelTimerDisplay").textContent = formatElapsed(currentElapsed(job.travelActualSecs, job.travelRunningSince));
+    document.getElementById("travelTimerBtn").textContent = job.travelRunningSince ? "Stop" : "Start";
+    document.getElementById("warrantyTimerDisplay").textContent = formatElapsed(currentElapsed(job.warrantyActualSecs, job.warrantyRunningSince));
+    document.getElementById("warrantyTimerBtn").textContent = job.warrantyRunningSince ? "Stop" : "Start";
+  }
+  async function toggleTimer(field) {
+    const id = document.getElementById("jobId").value;
+    if (!id) return;
+    const job = state.jobs.find(j => j.id === id);
+    if (!job) return;
+    const runningKey = field === "travel" ? "travelRunningSince" : "warrantyRunningSince";
+    const secsKey = field === "travel" ? "travelActualSecs" : "warrantyActualSecs";
+    const dbRunningCol = field === "travel" ? "travel_running_since" : "warranty_running_since";
+    const dbSecsCol = field === "travel" ? "travel_actual_secs" : "warranty_actual_secs";
+    let update;
+    if (job[runningKey]) {
+      update = { [dbSecsCol]: Math.round((job[secsKey]||0) + currentElapsed(0, job[runningKey])), [dbRunningCol]: null };
+    } else {
+      update = { [dbRunningCol]: new Date().toISOString() };
+    }
+    await sb.from("jobs").update(update).eq("id", id);
+    await loadJobs();
+    refreshTimerDisplays();
+    render();
+  }
+  document.getElementById("travelTimerBtn").addEventListener("click", () => toggleTimer("travel"));
+  document.getElementById("warrantyTimerBtn").addEventListener("click", () => toggleTimer("warranty"));
+  document.getElementById("f_warranty").addEventListener("change", (e) => {
+    document.getElementById("warrantyTimerField").style.display = e.target.checked ? "" : "none";
+  });
 
   // ---------- Access gate ----------
   async function checkAccess(code) {
@@ -649,6 +738,9 @@
   }
   function apprenticeTag(j) {
     return j.apprentice ? ` <span style="font-size:10px; background:var(--amber-soft); color:var(--amber); padding:1px 5px; border-radius:6px; font-weight:600;">+Apprentice</span>` : "";
+  }
+  function warrantyTag(j) {
+    return j.warranty ? ` <span style="font-size:10px; background:var(--steel-soft); color:var(--steel); padding:1px 5px; border-radius:6px; font-weight:600;">Warranty</span>` : "";
   }
 
   // ---------- Rail ----------
@@ -806,7 +898,8 @@
         const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
         html += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
           <div class="job-time">${j.time?escapeHtml(j.time):"—"} · ${formatDuration(j.duration||0, state.workDayMins)}${j.travel?` (+${j.travel} travel)`:""}</div>
-          <div class="job-cust">${num}${escapeHtml(j.customer||"Untitled job")}${apprenticeTag(j)}</div>
+          <div class="job-cust">${num}${escapeHtml(j.customer||"Untitled job")}${apprenticeTag(j)}${warrantyTag(j)}</div>
+          ${(j.make||j.model)?`<div class="job-meta">${escapeHtml([j.make,j.model].filter(Boolean).join(" "))}${j.serial?" · S/N "+escapeHtml(j.serial):""}</div>`:""}
           <div class="job-meta">${typeLabel(j.type)}${j.address?` · ${escapeHtml(j.address)} · <a href="${mapsUrl(j.address)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--green); font-weight:600; text-decoration:none;">Maps ↗</a>`:""}</div>
           <span class="status-pill status-${j.status||"planned"}" style="margin-top:4px;">${statusLabel(j.status)}</span>
         </div>`;
@@ -854,7 +947,7 @@
 
   function setModalReadOnly(isAdmin) {
     const techEditable = new Set(["f_notes"]); // fields techs can still edit on an existing job
-    ["f_jobnum","f_date","f_time","f_travel","f_duration","f_lane","f_type","f_customer","f_address","f_notes","f_status","f_apprentice"]
+    ["f_jobnum","f_date","f_time","f_travel","f_duration","f_lane","f_type","f_customer","f_address","f_notes","f_status","f_apprentice","f_make","f_model","f_serial","f_warranty"]
       .forEach(id => { document.getElementById(id).disabled = isAdmin ? false : !techEditable.has(id); });
     document.getElementById("saveJobBtn").style.display = "";
     document.getElementById("saveJobBtn").textContent = isAdmin ? "Save job" : "Save notes";
@@ -878,6 +971,12 @@
     document.getElementById("f_lane").value = job ? job.lane : (presetLane || state.lanes[0].id);
     document.getElementById("f_apprentice").checked = job ? !!job.apprentice : false;
     document.getElementById("f_customer").value = job ? (job.customer||"") : "";
+    document.getElementById("f_make").value = job ? (job.make||"") : "";
+    document.getElementById("f_model").value = job ? (job.model||"") : "";
+    document.getElementById("f_serial").value = job ? (job.serial||"") : "";
+    document.getElementById("f_warranty").checked = job ? !!job.warranty : false;
+    document.getElementById("warrantyTimerField").style.display = document.getElementById("f_warranty").checked ? "" : "none";
+    document.getElementById("timerRow").style.display = job ? "" : "none";
     document.getElementById("f_address").value = job ? (job.address||"") : "";
     updateMapsLink();
     document.getElementById("f_notes").value = job ? (job.notes||"") : "";
@@ -885,13 +984,15 @@
     updateApprenticeVisibility();
     setModalReadOnly(session.isAdmin);
     if (!job) document.getElementById("deleteJobBtn").style.display = "none";
+    stopTimerTick();
+    if (job) { refreshTimerDisplays(); timerTickHandle = setInterval(refreshTimerDisplays, 1000); }
     overlay.classList.add("open");
   }
   document.getElementById("f_type").addEventListener("change", (e) => { if (modalIsNewJob) document.getElementById("f_duration").value = defaultDurationForType(e.target.value); });
   document.getElementById("f_lane").addEventListener("change", updateApprenticeVisibility);
   document.getElementById("f_address").addEventListener("input", updateMapsLink);
 
-  function closeModal() { document.getElementById("overlay").classList.remove("open"); }
+  function closeModal() { document.getElementById("overlay").classList.remove("open"); stopTimerTick(); }
 
   async function saveJobFromForm() {
     const id = document.getElementById("jobId").value || null;
@@ -906,6 +1007,10 @@
       apprentice: document.getElementById("f_apprentice").checked,
       type: document.getElementById("f_type").value,
       customer: document.getElementById("f_customer").value.trim(),
+      make: document.getElementById("f_make").value.trim(),
+      model: document.getElementById("f_model").value.trim(),
+      serial: document.getElementById("f_serial").value.trim(),
+      warranty: document.getElementById("f_warranty").checked,
       address: document.getElementById("f_address").value.trim(),
       notes: document.getElementById("f_notes").value.trim(),
       status: document.getElementById("f_status").value
