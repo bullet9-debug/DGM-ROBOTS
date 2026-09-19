@@ -196,6 +196,8 @@
 
   /* ===== Week / Day (swimlane) ===== */
   .swim-wrap { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--paper-raised); }
+  .swim-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .swim-head, .swim-row { min-width: 890px; }
   .swim-head { display: grid; }
   .swim-head-cell {
     padding: 10px 12px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line-soft);
@@ -231,6 +233,9 @@
   .job-time { font-weight: 600; font-variant-numeric: tabular-nums; }
   .job-cust { font-weight: 500; }
   .job-meta { color: var(--ink-soft); font-size: 11px; }
+  .swim-cell .job-cust, .swim-cell .job-meta {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
 
   /* Day view detail lanes */
   .day-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
@@ -286,7 +291,7 @@
       <div class="sub">Installs · site visits · workshop</div>
     </div>
 
-    <div class="rail-section">
+    <div class="rail-section" id="teamCapacitySection">
       <div class="rail-title">TEAM &amp; CAPACITY</div>
       <div id="laneToggles"></div>
     </div>
@@ -590,8 +595,9 @@
       state.activeLanes = [session.laneId];
     }
 
-    // Settings + Outlook box + New job button are office-only for now.
+    // Settings + team roster + Outlook box + New job button are office-only for now.
     document.getElementById("settingsSection").style.display = session.isAdmin ? "" : "none";
+    document.getElementById("teamCapacitySection").style.display = session.isAdmin ? "" : "none";
     document.getElementById("newJobBtn").style.display = session.isAdmin ? "" : "none";
 
     await loadLanes();
@@ -738,7 +744,8 @@
     const days = Array.from({length:7}, (_,i) => addDays(ws,i));
     const lanes = state.lanes.filter(l => state.activeLanes.includes(l.id));
 
-    let head = `<div class="swim-wrap"><div class="swim-head" style="grid-template-columns: 150px repeat(7, 1fr);"><div class="swim-head-cell">Team</div>`;
+    const GRID_COLS = "120px repeat(7, 110px)";
+    let head = `<div class="swim-wrap"><div class="swim-scroll"><div class="swim-head" style="grid-template-columns: ${GRID_COLS};"><div class="swim-head-cell">Team</div>`;
     days.forEach(d => {
       head += `<div class="swim-head-cell"><div class="day-col-label"><span>${d.toLocaleDateString(undefined,{day:"numeric",month:"short"})}</span><span class="dow">${d.toLocaleDateString(undefined,{weekday:"short"})}</span></div></div>`;
     });
@@ -746,7 +753,7 @@
 
     let body = `<div class="swim-body">`;
     lanes.forEach(lane => {
-      body += `<div class="swim-row" style="grid-template-columns: 150px repeat(7, 1fr);"><div class="swim-row-label"><span class="swatch" style="background:${lane.color}"></span>${escapeHtml(lane.name)}</div>`;
+      body += `<div class="swim-row" style="grid-template-columns: ${GRID_COLS};"><div class="swim-row-label"><span class="swatch" style="background:${lane.color}"></span>${escapeHtml(lane.name)}</div>`;
       days.forEach(d => {
         const dateStr = fmtISODate(d);
         const mins = laneMinutesOn(dateStr, lane.id);
@@ -768,7 +775,7 @@
       });
       body += `</div>`;
     });
-    body += `</div></div>`;
+    body += `</div></div></div>`;
     el.innerHTML = head + body;
     el.querySelectorAll(".job-block").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
     if (session.isAdmin) el.querySelectorAll(".swim-cell").forEach(c => c.addEventListener("click", () => openJobModal(null, c.dataset.date, c.dataset.lane)));
