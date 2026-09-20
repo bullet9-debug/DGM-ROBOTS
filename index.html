@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -363,6 +363,7 @@
       <div class="field">
         <label for="f_date">Date</label>
         <input type="date" id="f_date">
+        <div id="dateConfirm" style="font-size:12px; margin-top:5px; color:var(--ink-soft);"></div>
       </div>
     </div>
 
@@ -586,6 +587,16 @@
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
   function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
   function fmtISODate(d) { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${day}`; }
+  function fmtUKDate(iso) {
+    if (!iso) return "";
+    const [y,m,d] = iso.split("-").map(Number);
+    if (!y||!m||!d) return "";
+    const dt = new Date(y, m-1, d);
+    return dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  }
+  function updateDateConfirm() {
+    document.getElementById("dateConfirm").textContent = fmtUKDate(document.getElementById("f_date").value);
+  }
   function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate()+n); return x; }
   function startOfWeek(d) { const x = startOfDay(d); const day = (x.getDay()+6)%7; return addDays(x, -day); }
   function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
@@ -1031,6 +1042,7 @@
     document.getElementById("jobId").value = job ? job.id : "";
     document.getElementById("f_jobnum").value = job ? (job.jobNumber||"") : "";
     document.getElementById("f_date").value = job ? job.date : (presetDate || fmtISODate(cursorDate));
+    updateDateConfirm();
     document.getElementById("f_time").value = job ? (job.time||"") : "";
     document.getElementById("f_type").value = job ? job.type : "install";
     document.getElementById("f_duration").value = job ? job.duration : defaultDurationForType(document.getElementById("f_type").value);
@@ -1068,6 +1080,7 @@
   document.getElementById("f_lane").addEventListener("change", updateApprenticeVisibility);
   document.getElementById("f_address").addEventListener("input", updateMapsLink);
   document.getElementById("f_address").addEventListener("input", debouncedUpdateMileage);
+  document.getElementById("f_date").addEventListener("input", updateDateConfirm);
 
   function closeModal() { document.getElementById("overlay").classList.remove("open"); stopTimerTick(); }
 
