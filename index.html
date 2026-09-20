@@ -595,7 +595,7 @@
   // technician already has a job within NEARBY_MILES_THRESHOLD miles of this address,
   // and has a free slot (within the working day, not overlapping other jobs + their
   // travel buffers) long enough for this job's duration + travel buffer.
-  const NEARBY_MILES_THRESHOLD = 10;
+  const NEARBY_MILES_THRESHOLD = 50;
   const SUGGEST_SEARCH_DAYS = 21;
   let suggestState = { token: 0, siteCoords: null };
   const distanceCache = {}; // "lat,lon|lat,lon" -> miles (one-way), reuses geocodeCache's coords
