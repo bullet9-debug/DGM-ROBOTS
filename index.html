@@ -595,7 +595,7 @@
   // technician already has a job within NEARBY_MILES_THRESHOLD miles of this address,
   // and has a free slot (within the working day, not overlapping other jobs + their
   // travel buffers) long enough for this job's duration + travel buffer.
-  const NEARBY_MILES_THRESHOLD = 50;
+  const NEARBY_MILES_THRESHOLD = 10;
   const SUGGEST_SEARCH_DAYS = 21;
   let suggestState = { token: 0, siteCoords: null };
   const distanceCache = {}; // "lat,lon|lat,lon" -> miles (one-way), reuses geocodeCache's coords
@@ -638,7 +638,7 @@
 
     const today = startOfDay(new Date());
     const jobsInWindow = state.jobs.filter(j => {
-      if (j.id === excludeId || j.lane === "workshop" || !j.date || !j.time || !j.address) return false;
+      if (j.id === excludeId || j.lane === "workshop" || !j.date || !j.address) return false;
       const diffDays = Math.round((new Date(j.date + "T00:00:00") - today) / 86400000);
       return diffDays >= 0 && diffDays <= SUGGEST_SEARCH_DAYS;
     });
@@ -670,7 +670,11 @@
     results.sort((a,b) => a.date === b.date ? a.distance - b.distance : (a.date < b.date ? -1 : 1));
 
     if (!results.length) {
-      renderSuggestPanel(`<div style="font-size:12px; color:var(--ink-soft); margin-top:6px;">No days in the next ${SUGGEST_SEARCH_DAYS} where a tech is already within ${NEARBY_MILES_THRESHOLD}mi with room for this job — pick a date manually.</div>`);
+      if (candidateMap.size === 0) {
+        renderSuggestPanel(`<div style="font-size:12px; color:var(--ink-soft); margin-top:6px;">No jobs found within ${NEARBY_MILES_THRESHOLD}mi of this address in the next ${SUGGEST_SEARCH_DAYS} days — pick a date manually.</div>`);
+      } else {
+        renderSuggestPanel(`<div style="font-size:12px; color:var(--ink-soft); margin-top:6px;">Found nearby jobs, but no free slot long enough for this job on those days — pick a date manually.</div>`);
+      }
       return;
     }
     const top = results.slice(0, 3);
