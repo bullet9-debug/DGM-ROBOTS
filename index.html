@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en-GB">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -363,7 +363,6 @@
       <div class="field">
         <label for="f_date">Date</label>
         <input type="date" id="f_date">
-        <div id="dateConfirm" style="font-size:12px; margin-top:5px; color:var(--ink-soft);"></div>
       </div>
     </div>
 
@@ -430,9 +429,6 @@
       <label for="f_address">Address / postcode</label>
       <input type="text" id="f_address" placeholder="For drive-time estimates later">
       <a href="#" id="mapsLink" target="_blank" rel="noopener" style="display:none; font-size:12px; margin-top:5px; color:var(--green); text-decoration:none; font-weight:600;">Open in Google Maps ↗</a>
-      <input type="hidden" id="f_mileage">
-      <div id="mileageInfo" style="font-size:12px; margin-top:5px; color:var(--ink-soft);"></div>
-      <div id="suggestPanel"></div>
     </div>
 
     <div class="field">
@@ -499,8 +495,6 @@
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Implanp3anR5ZG1ycmFieHl5YW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4MDU1NjgsImV4cCI6MjEwNTM4MTU2OH0.Mt00WPuDTMcZN7hzB8Hqrc_VwAHrNDiwVnut8IAhf0M";
   // =======================================================================================
 
-  const HQ_POSTCODE = "TQ2 7HX"; // used to calculate one-way mileage to job addresses, for invoicing
-
   const FALLBACK_LANES = [
     { id: "tech1", name: "Tech 1", color: "#E0A526", sort_order: 1 },
     { id: "tech2", name: "Tech 2", color: "#C1443A", sort_order: 2 },
@@ -522,189 +516,9 @@
   function timeToMins(t) { if (!t) return null; const [h,m] = t.split(":").map(Number); return h*60+m; }
   function minsToClock(m) { const h24 = Math.floor(m/60)%24, mm = m%60; const ap = h24>=12?"pm":"am"; let h12 = h24%12; if (h12===0) h12=12; return `${h12}:${String(mm).padStart(2,"0")}${ap}`; }
   function mapsUrl(address) { return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`; }
-
-  // ---------- Mileage from HQ (for invoicing) ----------
-  // Uses postcodes.io (free, no key) to geocode UK postcodes, then the OSRM public
-  // routing server (free, no key) to get a real driving distance. Both are public
-  // demo services with fair-use limits — fine for occasional lookups, but if this
-  // gets heavy use, swap drivingMiles() for a paid API (e.g. Google Distance Matrix).
-  const POSTCODE_RE = /([Gg][Ii][Rr] ?0[Aa]{2})|((?:[A-Za-z][0-9]{1,2})|(?:[A-Za-z][A-Ha-hJ-Yj-y][0-9]{1,2})|(?:[A-Za-z][0-9][A-Za-z])|(?:[A-Za-z][A-Ha-hJ-Yj-y][0-9][A-Za-z]?))\s?[0-9][A-Za-z]{2}\b/;
-  function extractPostcode(text) {
-    const m = String(text||"").match(POSTCODE_RE);
-    return m ? m[0].trim() : null;
-  }
-  const geocodeCache = {}; // postcode (no spaces, upper) -> {lat, lon} | null
-  async function geocodePostcode(pc) {
-    const key = pc.replace(/\s+/g, "").toUpperCase();
-    if (key in geocodeCache) return geocodeCache[key];
-    try {
-      const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(key)}`);
-      const data = await res.json();
-      const coords = (data && data.status === 200 && data.result) ? { lat: data.result.latitude, lon: data.result.longitude } : null;
-      geocodeCache[key] = coords;
-      return coords;
-    } catch (e) { return null; }
-  }
-  let hqCoordsPromise = null;
-  function getHQCoords() {
-    if (!hqCoordsPromise) hqCoordsPromise = geocodePostcode(HQ_POSTCODE);
-    return hqCoordsPromise;
-  }
-  async function drivingMilesBetween(a, b) {
-    try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.code !== "Ok" || !data.routes || !data.routes[0]) return null;
-      return data.routes[0].distance / 1609.344; // metres -> miles
-    } catch (e) { return null; }
-  }
-  let mileageReqToken = 0;
-  async function updateMileage() {
-    const infoEl = document.getElementById("mileageInfo");
-    const hiddenEl = document.getElementById("f_mileage");
-    const addr = document.getElementById("f_address").value.trim();
-    const postcode = extractPostcode(addr);
-    const myToken = ++mileageReqToken;
-    if (!postcode) {
-      hiddenEl.value = "";
-      infoEl.textContent = "";
-      suggestState.siteCoords = null;
-      renderSuggestPanel("");
-      return;
-    }
-    infoEl.textContent = "Calculating mileage from HQ…";
-    const [hq, site] = await Promise.all([getHQCoords(), geocodePostcode(postcode)]);
-    if (myToken !== mileageReqToken) return; // a newer request superseded this one
-    if (!site) { infoEl.textContent = "Couldn't find that postcode."; hiddenEl.value = ""; suggestState.siteCoords = null; renderSuggestPanel(""); return; }
-    suggestState.siteCoords = site;
-    suggestDates();
-    if (!hq) { infoEl.textContent = "Couldn't locate HQ postcode — check HQ_POSTCODE in setup."; hiddenEl.value = ""; return; }
-    const oneWay = await drivingMilesBetween(hq, site);
-    if (myToken !== mileageReqToken) return;
-    if (oneWay == null) { infoEl.textContent = "Route lookup failed — try again."; hiddenEl.value = ""; return; }
-    const miles = oneWay * 2;
-    hiddenEl.value = miles.toFixed(1);
-    infoEl.textContent = `${miles.toFixed(1)} mi return trip from HQ (${oneWay.toFixed(1)} mi each way, driving)`;
-  }
-  function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; }
-  const debouncedUpdateMileage = debounce(updateMileage, 600);
-
-  // ---------- Suggested dates: "we're already in the area" ----------
-  // When a postcode is entered, look for days in the next SUGGEST_SEARCH_DAYS where a
-  // technician already has a job within NEARBY_MILES_THRESHOLD miles of this address,
-  // and has a free slot (within the working day, not overlapping other jobs + their
-  // travel buffers) long enough for this job's duration + travel buffer.
-  const NEARBY_MILES_THRESHOLD = 10;
-  const SUGGEST_SEARCH_DAYS = 21;
-  let suggestState = { token: 0, siteCoords: null };
-  const distanceCache = {}; // "lat,lon|lat,lon" -> miles (one-way), reuses geocodeCache's coords
-  async function drivingMilesCached(a, b) {
-    const key = `${a.lat.toFixed(4)},${a.lon.toFixed(4)}|${b.lat.toFixed(4)},${b.lon.toFixed(4)}`;
-    if (key in distanceCache) return distanceCache[key];
-    const miles = await drivingMilesBetween(a, b);
-    distanceCache[key] = miles;
-    return miles;
-  }
-  function minsToHHMM(m) { const h = Math.floor(m/60), mm = m%60; return `${String(h).padStart(2,"0")}:${String(mm).padStart(2,"0")}`; }
-  function dayBusyIntervals(lane, dateStr, excludeId) {
-    return state.jobs
-      .filter(j => j.lane === lane && j.date === dateStr && j.id !== excludeId && j.time)
-      .map(j => {
-        const start = timeToMins(j.time), travel = j.travel || 0, dur = j.duration || 0;
-        return { start: Math.max(0, start - travel), end: Math.min(1440, start + dur + travel) };
-      })
-      .sort((a,b) => a.start - b.start);
-  }
-  function findFreeSlot(busy, neededMins, dayStartMin, dayEndMin) {
-    let candidate = dayStartMin;
-    for (const b of busy) {
-      if (candidate + neededMins <= b.start) return candidate;
-      if (b.end > candidate) candidate = b.end;
-    }
-    return (candidate + neededMins <= dayEndMin) ? candidate : null;
-  }
-  function renderSuggestPanel(html) { document.getElementById("suggestPanel").innerHTML = html; }
-  async function suggestDates() {
-    const site = suggestState.siteCoords;
-    if (!site) { renderSuggestPanel(""); return; }
-    const duration = Number(document.getElementById("f_duration").value) || 0;
-    const travel = Number(document.getElementById("f_travel").value) || 0;
-    if (!duration) { renderSuggestPanel(`<div style="font-size:12px; color:var(--ink-soft); margin-top:6px;">Pick a duration to see suggested dates.</div>`); return; }
-    const neededMins = duration + travel;
-    const excludeId = document.getElementById("jobId").value || null;
-    const myToken = ++suggestState.token;
-    renderSuggestPanel(`<div style="font-size:12px; color:var(--ink-soft); margin-top:6px;">Finding efficient dates…</div>`);
-
-    const today = startOfDay(new Date());
-    const jobsInWindow = state.jobs.filter(j => {
-      if (j.id === excludeId || j.lane === "workshop" || !j.date || !j.address) return false;
-      const diffDays = Math.round((new Date(j.date + "T00:00:00") - today) / 86400000);
-      return diffDays >= 0 && diffDays <= SUGGEST_SEARCH_DAYS;
-    });
-
-    const candidateMap = new Map(); // "date|lane" -> { distance, job }
-    for (const j of jobsInWindow) {
-      const pc = extractPostcode(j.address);
-      if (!pc) continue;
-      const coords = await geocodePostcode(pc);
-      if (myToken !== suggestState.token) return;
-      if (!coords) continue;
-      const miles = await drivingMilesCached(site, coords);
-      if (myToken !== suggestState.token) return;
-      if (miles == null || miles > NEARBY_MILES_THRESHOLD) continue;
-      const key = `${j.date}|${j.lane}`;
-      const existing = candidateMap.get(key);
-      if (!existing || miles < existing.distance) candidateMap.set(key, { distance: miles, job: j });
-    }
-    if (myToken !== suggestState.token) return;
-
-    const results = [];
-    const dayStart = timeToMins(state.workDayStart), dayEnd = timeToMins(state.workDayEnd);
-    for (const [key, info] of candidateMap.entries()) {
-      const [date, lane] = key.split("|");
-      const slotStart = findFreeSlot(dayBusyIntervals(lane, date, excludeId), neededMins, dayStart, dayEnd);
-      if (slotStart == null) continue;
-      results.push({ date, lane, distance: info.distance, anchor: info.job, slotStart });
-    }
-    results.sort((a,b) => a.date === b.date ? a.distance - b.distance : (a.date < b.date ? -1 : 1));
-
-    if (!results.length) {
-      if (candidateMap.size === 0) {
-        renderSuggestPanel(`<div style="font-size:12px; color:var(--ink-soft); margin-top:6px;">No jobs found within ${NEARBY_MILES_THRESHOLD}mi of this address in the next ${SUGGEST_SEARCH_DAYS} days — pick a date manually.</div>`);
-      } else {
-        renderSuggestPanel(`<div style="font-size:12px; color:var(--ink-soft); margin-top:6px;">Found nearby jobs, but no free slot long enough for this job on those days — pick a date manually.</div>`);
-      }
-      return;
-    }
-    const top = results.slice(0, 3);
-    const html = `<div style="font-size:12px; color:var(--ink-soft); margin:8px 0 4px;">💡 Suggested dates (already in the area):</div>` +
-      `<div style="display:flex; flex-direction:column; gap:6px;">` +
-      top.map(r => {
-        const l = laneById(r.lane);
-        const laneName = l ? l.name : r.lane;
-        const anchorNum = r.anchor.jobNumber ? ` #${escapeHtml(r.anchor.jobNumber)}` : "";
-        return `<button type="button" class="suggestBtn" data-date="${r.date}" data-lane="${escapeAttr(r.lane)}" data-time="${minsToHHMM(r.slotStart)}"
-          style="text-align:left; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--green-soft); color:var(--ink); cursor:pointer;">
-          <strong>${fmtUKDate(r.date)}</strong> · ${minsToClock(r.slotStart)} · ${escapeHtml(laneName)}<br>
-          <span style="font-size:11px; color:var(--ink-soft);">${r.distance.toFixed(1)}mi from job${anchorNum} that day</span>
-        </button>`;
-      }).join("") + `</div>`;
-    renderSuggestPanel(html);
-  }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
   function startOfDay(d) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
   function fmtISODate(d) { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${day}`; }
-  function fmtUKDate(iso) {
-    if (!iso) return "";
-    const [y,m,d] = iso.split("-").map(Number);
-    if (!y||!m||!d) return "";
-    const dt = new Date(y, m-1, d);
-    return dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
-  }
-  function updateDateConfirm() {
-    document.getElementById("dateConfirm").textContent = fmtUKDate(document.getElementById("f_date").value);
-  }
   function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate()+n); return x; }
   function startOfWeek(d) { const x = startOfDay(d); const day = (x.getDay()+6)%7; return addDays(x, -day); }
   function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
@@ -743,7 +557,7 @@
     return {
       id: r.id, jobNumber: r.job_number || "", date: r.date, time: r.start_time ? r.start_time.slice(0,5) : "",
       duration: r.duration_mins || 0, travel: r.travel_mins || 0, lane: r.lane_id, apprentice: !!r.apprentice,
-      type: r.type, customer: r.customer || "", address: r.address || "", mileage: r.mileage_miles ?? null, notes: r.notes || "",
+      type: r.type, customer: r.customer || "", address: r.address || "", notes: r.notes || "",
       make: r.make || "", model: r.model || "", serial: r.serial_number || "", warranty: !!r.warranty,
       travelActualSecs: r.travel_actual_secs || 0, travelRunningSince: r.travel_running_since || null,
       warrantyActualSecs: r.warranty_actual_secs || 0, warrantyRunningSince: r.warranty_running_since || null,
@@ -754,7 +568,7 @@
     return {
       job_number: j.jobNumber || null, date: j.date, start_time: j.time || null,
       duration_mins: j.duration || 0, travel_mins: j.travel || 0, lane_id: j.lane, apprentice: !!j.apprentice,
-      type: j.type, customer: j.customer || null, address: j.address || null, mileage_miles: j.mileage ?? null, notes: j.notes || null,
+      type: j.type, customer: j.customer || null, address: j.address || null, notes: j.notes || null,
       make: j.make || null, model: j.model || null, serial_number: j.serial || null, warranty: !!j.warranty,
       status: j.status || "planned"
     };
@@ -928,6 +742,9 @@
   function warrantyTag(j) {
     return j.warranty ? ` <span style="font-size:10px; background:var(--steel-soft); color:var(--steel); padding:1px 5px; border-radius:6px; font-weight:600;">Warranty</span>` : "";
   }
+  function confirmedTick(j) {
+    return j.status === "confirmed" ? ` <span title="Confirmed" style="color:var(--green); font-weight:700;">✓</span>` : "";
+  }
 
   // ---------- Rail ----------
   function renderRail() {
@@ -1006,7 +823,7 @@
       dayJobs.slice(0,3).forEach(j => {
         const lane = laneById(j.lane) || {color:"#999"};
         const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} ` : "";
-        html += `<div class="chip" style="border-color:${lane.color}; background:${lane.color}18;" data-job="${j.id}">${j.time?escapeHtml(j.time)+" ":""}${num}${escapeHtml(j.customer||typeLabel(j.type))}</div>`;
+        html += `<div class="chip" style="border-color:${lane.color}; background:${lane.color}18;" data-job="${j.id}">${j.time?escapeHtml(j.time)+" ":""}${num}${escapeHtml(j.customer||typeLabel(j.type))}${confirmedTick(j)}</div>`;
       });
       if (dayJobs.length > 3) html += `<div class="chip-more">+${dayJobs.length-3} more</div>`;
       html += `</div>`;
@@ -1045,7 +862,7 @@
           const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
           body += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
             <div class="job-time">${j.time?escapeHtml(j.time):"—"}</div>
-            <div class="job-cust">${num}${escapeHtml(j.customer||typeLabel(j.type))}${apprenticeTag(j)}</div>
+            <div class="job-cust">${num}${escapeHtml(j.customer||typeLabel(j.type))}${confirmedTick(j)}${apprenticeTag(j)}</div>
             <div class="job-meta">${typeLabel(j.type)}</div>
           </div>`;
         });
@@ -1084,7 +901,7 @@
         const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
         html += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
           <div class="job-time">${j.time?escapeHtml(j.time):"—"} · ${formatDuration(j.duration||0, state.workDayMins)}${j.travel?` (+${j.travel} travel)`:""}</div>
-          <div class="job-cust">${num}${escapeHtml(j.customer||"Untitled job")}${apprenticeTag(j)}${warrantyTag(j)}</div>
+          <div class="job-cust">${num}${escapeHtml(j.customer||"Untitled job")}${confirmedTick(j)}${apprenticeTag(j)}${warrantyTag(j)}</div>
           ${(j.make||j.model)?`<div class="job-meta">${escapeHtml([j.make,j.model].filter(Boolean).join(" "))}${j.serial?" · S/N "+escapeHtml(j.serial):""}</div>`:""}
           <div class="job-meta">${typeLabel(j.type)}${j.address?` · ${escapeHtml(j.address)} · <a href="${mapsUrl(j.address)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--green); font-weight:600; text-decoration:none;">Maps ↗</a>`:""}</div>
           <span class="status-pill status-${j.status||"planned"}" style="margin-top:4px;">${statusLabel(j.status)}</span>
@@ -1150,7 +967,6 @@
     document.getElementById("jobId").value = job ? job.id : "";
     document.getElementById("f_jobnum").value = job ? (job.jobNumber||"") : "";
     document.getElementById("f_date").value = job ? job.date : (presetDate || fmtISODate(cursorDate));
-    updateDateConfirm();
     document.getElementById("f_time").value = job ? (job.time||"") : "";
     document.getElementById("f_type").value = job ? job.type : "install";
     document.getElementById("f_duration").value = job ? job.duration : defaultDurationForType(document.getElementById("f_type").value);
@@ -1166,20 +982,6 @@
     document.getElementById("timerRow").style.display = job ? "" : "none";
     document.getElementById("f_address").value = job ? (job.address||"") : "";
     updateMapsLink();
-    mileageReqToken++; // cancel any in-flight lookup from a previously open modal
-    const myModalToken = ++suggestState.token; // cancel any in-flight suggestion lookup too
-    suggestState.siteCoords = null;
-    document.getElementById("suggestPanel").innerHTML = "";
-    if (job && job.mileage != null) {
-      document.getElementById("f_mileage").value = job.mileage;
-      document.getElementById("mileageInfo").textContent = `${Number(job.mileage).toFixed(1)} mi return trip from HQ (driving)`;
-      const pc = extractPostcode(document.getElementById("f_address").value);
-      if (pc) geocodePostcode(pc).then(c => { if (myModalToken === suggestState.token && c) { suggestState.siteCoords = c; suggestDates(); } });
-    } else {
-      document.getElementById("f_mileage").value = "";
-      document.getElementById("mileageInfo").textContent = "";
-      if (document.getElementById("f_address").value.trim()) updateMileage(); // e.g. address present but never calculated
-    }
     document.getElementById("f_notes").value = job ? (job.notes||"") : "";
     document.getElementById("f_status").value = job ? (job.status||"planned") : "planned";
     updateApprenticeVisibility();
@@ -1192,19 +994,6 @@
   document.getElementById("f_type").addEventListener("change", (e) => { if (modalIsNewJob) document.getElementById("f_duration").value = defaultDurationForType(e.target.value); });
   document.getElementById("f_lane").addEventListener("change", updateApprenticeVisibility);
   document.getElementById("f_address").addEventListener("input", updateMapsLink);
-  document.getElementById("f_address").addEventListener("input", debouncedUpdateMileage);
-  document.getElementById("f_date").addEventListener("input", updateDateConfirm);
-  document.getElementById("f_duration").addEventListener("change", suggestDates);
-  document.getElementById("f_travel").addEventListener("input", debounce(suggestDates, 400));
-  document.getElementById("suggestPanel").addEventListener("click", (e) => {
-    const btn = e.target.closest(".suggestBtn");
-    if (!btn) return;
-    document.getElementById("f_date").value = btn.dataset.date;
-    document.getElementById("f_time").value = btn.dataset.time;
-    document.getElementById("f_lane").value = btn.dataset.lane;
-    updateDateConfirm();
-    updateApprenticeVisibility();
-  });
 
   function closeModal() { document.getElementById("overlay").classList.remove("open"); stopTimerTick(); }
 
@@ -1226,7 +1015,6 @@
       serial: document.getElementById("f_serial").value.trim(),
       warranty: document.getElementById("f_warranty").checked,
       address: document.getElementById("f_address").value.trim(),
-      mileage: document.getElementById("f_mileage").value ? Number(document.getElementById("f_mileage").value) : null,
       notes: document.getElementById("f_notes").value.trim(),
       status: document.getElementById("f_status").value
     };
