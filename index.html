@@ -356,6 +356,15 @@
     <h2 id="modalTitle">New job</h2>
     <input type="hidden" id="jobId">
 
+    <div class="field">
+      <label for="f_address">Address / postcode</label>
+      <input type="text" id="f_address" placeholder="For drive-time estimates later">
+      <a href="#" id="mapsLink" target="_blank" rel="noopener" style="display:none; font-size:12px; margin-top:5px; color:var(--green); text-decoration:none; font-weight:600;">Open in Google Maps ↗</a>
+      <input type="hidden" id="f_mileage">
+      <div id="mileageInfo" style="font-size:12px; margin-top:5px; color:var(--ink-soft);"></div>
+      <div id="suggestPanel"></div>
+    </div>
+
     <div class="field-row">
       <div class="field">
         <label for="f_jobnum">Job number</label>
@@ -425,15 +434,6 @@
     <div class="field">
       <label for="f_serial">S/N</label>
       <input type="text" id="f_serial">
-    </div>
-
-    <div class="field">
-      <label for="f_address">Address / postcode</label>
-      <input type="text" id="f_address" placeholder="For drive-time estimates later">
-      <a href="#" id="mapsLink" target="_blank" rel="noopener" style="display:none; font-size:12px; margin-top:5px; color:var(--green); text-decoration:none; font-weight:600;">Open in Google Maps ↗</a>
-      <input type="hidden" id="f_mileage">
-      <div id="mileageInfo" style="font-size:12px; margin-top:5px; color:var(--ink-soft);"></div>
-      <div id="suggestPanel"></div>
     </div>
 
     <div class="field">
