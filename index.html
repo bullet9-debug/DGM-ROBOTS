@@ -501,6 +501,9 @@
   // =======================================================================================
 
   const HQ_POSTCODE = "TQ2 7HX"; // used to calculate one-way mileage to job addresses, for invoicing
+  const MILEAGE_RATE_PER_MILE = 1.29; // £ ex VAT, standard one-way rate
+  const RETURN_MILEAGE_RATE_PER_MILE = MILEAGE_RATE_PER_MILE / 2; // half rate, applied to the full return-trip mileage
+  const VAT_RATE = 0.20;
 
   const FALLBACK_LANES = [
     { id: "tech1", name: "Tech 1", color: "#E0A526", sort_order: 1 },
@@ -553,11 +556,14 @@
   }
   async function drivingMilesBetween(a, b) {
     try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`;
+      const url = `https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false&alternatives=true`;
       const res = await fetch(url);
       const data = await res.json();
-      if (data.code !== "Ok" || !data.routes || !data.routes[0]) return null;
-      return data.routes[0].distance / 1609.344; // metres -> miles
+      if (data.code !== "Ok" || !data.routes || !data.routes.length) return null;
+      // OSRM's primary route is fastest-by-time, not necessarily shortest-by-distance —
+      // compare all returned alternatives and take the one with the least distance.
+      const shortest = data.routes.reduce((min, r) => (r.distance < min.distance ? r : min), data.routes[0]);
+      return shortest.distance / 1609.344; // metres -> miles
     } catch (e) { return null; }
   }
   let mileageReqToken = 0;
@@ -586,7 +592,9 @@
     if (oneWay == null) { infoEl.textContent = "Route lookup failed — try again."; hiddenEl.value = ""; return; }
     const miles = oneWay * 2;
     hiddenEl.value = miles.toFixed(1);
-    infoEl.textContent = `${miles.toFixed(1)} mi return trip from HQ (${oneWay.toFixed(1)} mi each way, driving)`;
+    const net = miles * RETURN_MILEAGE_RATE_PER_MILE;
+    const gross = net * (1 + VAT_RATE);
+    infoEl.textContent = `${miles.toFixed(1)} mi return trip (shortest route) · £${net.toFixed(2)} +VAT (£${gross.toFixed(2)} total)`;
   }
   function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; }
   const debouncedUpdateMileage = debounce(updateMileage, 600);
@@ -1174,7 +1182,10 @@
     document.getElementById("suggestPanel").innerHTML = "";
     if (job && job.mileage != null) {
       document.getElementById("f_mileage").value = job.mileage;
-      document.getElementById("mileageInfo").textContent = `${Number(job.mileage).toFixed(1)} mi return trip from HQ (driving)`;
+      const savedMiles = Number(job.mileage);
+      const savedNet = savedMiles * RETURN_MILEAGE_RATE_PER_MILE;
+      const savedGross = savedNet * (1 + VAT_RATE);
+      document.getElementById("mileageInfo").textContent = `${savedMiles.toFixed(1)} mi return trip · £${savedNet.toFixed(2)} +VAT (£${savedGross.toFixed(2)} total)`;
       const pc = extractPostcode(document.getElementById("f_address").value);
       if (pc) geocodePostcode(pc).then(c => { if (myModalToken === suggestState.token && c) { suggestState.siteCoords = c; suggestDates(); } });
     } else {
