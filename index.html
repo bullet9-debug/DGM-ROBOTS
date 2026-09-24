@@ -1221,6 +1221,22 @@
 
   function closeModal() { document.getElementById("overlay").classList.remove("open"); stopTimerTick(); }
 
+  function findDuplicateJobs(job, excludeId) {
+    const num = (job.jobNumber || "").trim().toLowerCase();
+    if (!num) return [];
+    return state.jobs.filter(j => j.id !== excludeId && (j.jobNumber||"").trim().toLowerCase() === num);
+  }
+  function findOverlappingJobs(job, excludeId) {
+    if (!job.time) return [];
+    const start = timeToMins(job.time), travel = job.travel || 0, dur = job.duration || 0;
+    const jStart = Math.max(0, start - travel), jEnd = Math.min(1440, start + dur + travel);
+    return state.jobs.filter(j => j.lane === job.lane && j.date === job.date && j.id !== excludeId && j.time).filter(j => {
+      const jS = timeToMins(j.time), jT = j.travel || 0, jD = j.duration || 0;
+      const oStart = Math.max(0, jS - jT), oEnd = Math.min(1440, jS + jD + jT);
+      return jStart < oEnd && oStart < jEnd;
+    });
+  }
+
   async function saveJobFromForm() {
     const id = document.getElementById("jobId").value || null;
     const date = document.getElementById("f_date").value;
@@ -1243,6 +1259,24 @@
       notes: document.getElementById("f_notes").value.trim(),
       status: document.getElementById("f_status").value
     };
+    const dupes = findDuplicateJobs(job, id);
+    if (dupes.length) {
+      const d = dupes[0];
+      const laneName = (laneById(d.lane)||{}).name || d.lane;
+      alert(`Job #${job.jobNumber} is already booked on ${d.date} (${laneName}). Use a different job number, or open and edit that existing job instead.`);
+      return;
+    }
+    const overlaps = findOverlappingJobs(job, id);
+    if (overlaps.length) {
+      const laneName = (laneById(job.lane)||{}).name || job.lane;
+      const lines = overlaps.map(o => {
+        const num = o.jobNumber ? `#${o.jobNumber}` : "(no job #)";
+        const travelNote = o.travel ? ` incl. ${o.travel}min travel` : "";
+        return `  ${num} at ${o.time}, ${o.duration}min${travelNote}`;
+      }).join("\n");
+      const proceed = confirm(`This clashes with ${overlaps.length > 1 ? "other jobs" : "another job"} already booked for ${laneName} on ${job.date}:\n${lines}\n\nSave anyway?`);
+      if (!proceed) return;
+    }
     const dbRow = appJobToDb(job);
     if (id) await sb.from("jobs").update(dbRow).eq("id", id);
     else await sb.from("jobs").insert(dbRow);
