@@ -171,6 +171,12 @@
   .view-switch button { border: none; border-radius: 0; border-right: 1px solid var(--line); }
   .view-switch button:last-child { border-right: none; }
   .view-switch button.active { background: var(--green); color: var(--paper-raised); }
+  .view-switch button { position: relative; }
+  .nav-badge { position: absolute; top: 2px; right: 3px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 8px; background: var(--danger); color: #fff; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center; }
+
+  .chase-banner { margin: 0 24px; margin-top: 14px; padding: 10px 14px; background: var(--amber-soft); border: 1px solid var(--amber); border-radius: var(--radius); font-size: 12px; color: var(--ink); }
+  .chase-banner strong { color: var(--amber); }
+  .chase-item { cursor: pointer; font-weight: 600; text-decoration: underline; text-decoration-style: dotted; }
 
   .content { flex: 1; padding: 20px 24px; overflow: auto; }
 
@@ -340,11 +346,13 @@
           <button data-view="month">Month</button>
           <button data-view="week">Week</button>
           <button data-view="day">Day</button>
+          <button data-view="followup">Follow-up<span id="followupBadge" class="nav-badge" style="display:none;"></span></button>
         </div>
         <button class="primary" id="newJobBtn">+ New job</button>
       </div>
     </div>
 
+    <div id="chaseBanner" class="chase-banner" style="display:none;"></div>
     <div class="content" id="content"></div>
   </div>
 </div>
@@ -445,6 +453,13 @@
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
         <input type="checkbox" id="f_warranty" style="width:auto;"> Warranty job
       </label>
+    </div>
+
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="f_attended" style="width:auto;"> Attended — job was actually done
+      </label>
+      <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Once the date passes, attended jobs move to Follow-up → Invoicing/warranty; everything else past its date drops into Needs rebooking.</div>
     </div>
 
     <div class="field-row" id="timerRow" style="display:none;">
@@ -754,7 +769,7 @@
       id: r.id, jobNumber: r.job_number || "", date: r.date, time: r.start_time ? r.start_time.slice(0,5) : "",
       duration: r.duration_mins || 0, travel: r.travel_mins || 0, lane: r.lane_id, apprentice: !!r.apprentice,
       type: r.type, customer: r.customer || "", address: r.address || "", mileage: r.mileage_miles ?? null, notes: r.notes || "",
-      make: r.make || "", model: r.model || "", serial: r.serial_number || "", warranty: !!r.warranty,
+      make: r.make || "", model: r.model || "", serial: r.serial_number || "", warranty: !!r.warranty, attended: !!r.attended,
       travelActualSecs: r.travel_actual_secs || 0, travelRunningSince: r.travel_running_since || null,
       warrantyActualSecs: r.warranty_actual_secs || 0, warrantyRunningSince: r.warranty_running_since || null,
       status: r.status || "planned", outlookStatus: r.outlook_status || "not_connected", outlookThreadId: r.outlook_thread_id || null
@@ -765,7 +780,7 @@
       job_number: j.jobNumber || null, date: j.date, start_time: j.time || null,
       duration_mins: j.duration || 0, travel_mins: j.travel || 0, lane_id: j.lane, apprentice: !!j.apprentice,
       type: j.type, customer: j.customer || null, address: j.address || null, mileage_miles: j.mileage ?? null, notes: j.notes || null,
-      make: j.make || null, model: j.model || null, serial_number: j.serial || null, warranty: !!j.warranty,
+      make: j.make || null, model: j.model || null, serial_number: j.serial || null, warranty: !!j.warranty, attended: !!j.attended,
       status: j.status || "planned"
     };
   }
@@ -988,12 +1003,19 @@
   function renderTopbar() {
     document.querySelectorAll(".view-switch button").forEach(b => b.classList.toggle("active", b.dataset.view === currentView));
     const label = document.getElementById("periodLabel");
+    const isFollowUp = currentView === "followup";
     if (currentView === "month") label.textContent = cursorDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
     else if (currentView === "week") {
       const ws = startOfWeek(cursorDate), we = addDays(ws, 6);
       label.textContent = `${ws.toLocaleDateString(undefined,{day:"numeric",month:"short"})} – ${we.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})}`;
-    } else label.textContent = cursorDate.toLocaleDateString(undefined, { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+    } else if (isFollowUp) label.textContent = "Past-date jobs";
+    else label.textContent = cursorDate.toLocaleDateString(undefined, { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+    ["prevBtn","nextBtn","todayBtn"].forEach(id => document.getElementById(id).disabled = isFollowUp);
     document.getElementById("teamToggle").checked = state.activeLanes.length > 1;
+    const badge = document.getElementById("followupBadge");
+    const needsAction = rebookQueue().length;
+    if (needsAction) { badge.textContent = needsAction > 99 ? "99+" : String(needsAction); badge.style.display = ""; }
+    else { badge.style.display = "none"; }
   }
 
   // ---------- Month view ----------
@@ -1109,12 +1131,68 @@
     if (session.isAdmin) el.querySelectorAll(".day-lane-body").forEach(c => c.addEventListener("click", (e) => { if (e.target.closest(".job-block")) return; openJobModal(null, c.dataset.date, c.dataset.lane); }));
   }
 
+  // ---------- Follow-up (past-date jobs) ----------
+  function isPastDate(dateStr) { return !!dateStr && dateStr < fmtISODate(startOfDay(new Date())); }
+  function pastJobs() { return state.jobs.filter(j => isPastDate(j.date)); }
+  function invoiceQueue() { return pastJobs().filter(j => j.attended); }
+  function rebookQueue() { return pastJobs().filter(j => !j.attended); }
+  function jobsNeedingChase() {
+    const todayStr = fmtISODate(startOfDay(new Date()));
+    const cutoff = fmtISODate(addDays(startOfDay(new Date()), 2));
+    return state.jobs.filter(j => j.date && j.date >= todayStr && j.date <= cutoff && j.status !== "confirmed");
+  }
+
+  function followUpJobRow(j) {
+    const lane = laneById(j.lane) || { color: "#999", name: j.lane };
+    const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
+    return `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
+      <div class="job-time">${escapeHtml(j.date)}${j.time?" · "+escapeHtml(j.time):""}</div>
+      <div class="job-cust">${num}${escapeHtml(j.customer||typeLabel(j.type))}${confirmedTick(j)}${warrantyTag(j)}</div>
+      <div class="job-meta">${escapeHtml(lane.name)} · ${typeLabel(j.type)}</div>
+      <span class="status-pill status-${j.status||"planned"}" style="margin-top:4px;">${statusLabel(j.status)}</span>
+    </div>`;
+  }
+
+  function renderFollowUp() {
+    const el = document.getElementById("content");
+    const invoiceJobs = invoiceQueue().sort((a,b) => b.date.localeCompare(a.date) || (b.time||"").localeCompare(a.time||""));
+    const rebookJobs = rebookQueue().sort((a,b) => b.date.localeCompare(a.date) || (b.time||"").localeCompare(a.time||""));
+    let html = `<div class="day-lanes">
+      <div class="day-lane">
+        <div class="day-lane-head"><strong style="flex:1;">To invoice / warranty</strong><span class="cap-pct">${invoiceJobs.length} job${invoiceJobs.length===1?"":"s"}</span></div>
+        <div class="day-lane-body">${invoiceJobs.length ? invoiceJobs.map(followUpJobRow).join("") : `<div class="empty-hint">Nothing waiting</div>`}</div>
+      </div>
+      <div class="day-lane">
+        <div class="day-lane-head"><strong style="flex:1;">Needs rebooking</strong><span class="cap-pct">${rebookJobs.length} job${rebookJobs.length===1?"":"s"}</span></div>
+        <div class="day-lane-body">${rebookJobs.length ? rebookJobs.map(followUpJobRow).join("") : `<div class="empty-hint">Nothing overdue</div>`}</div>
+      </div>
+    </div>`;
+    el.innerHTML = html;
+    el.querySelectorAll(".job-block").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
+  }
+
+  function renderChaseBanner() {
+    const banner = document.getElementById("chaseBanner");
+    const jobs = jobsNeedingChase().sort((a,b) => a.date.localeCompare(b.date));
+    if (!jobs.length) { banner.style.display = "none"; banner.innerHTML = ""; return; }
+    banner.style.display = "";
+    const items = jobs.map(j => {
+      const lane = laneById(j.lane) || { name: j.lane };
+      const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} ` : "";
+      return `<span class="chase-item" data-job="${j.id}">${num}${escapeHtml(j.customer||typeLabel(j.type))} · ${escapeHtml(lane.name)} · ${escapeHtml(j.date)}</span>`;
+    }).join(" &nbsp;•&nbsp; ");
+    banner.innerHTML = `<strong>Chase confirmation:</strong> ${items}`;
+    banner.querySelectorAll(".chase-item").forEach(el => el.addEventListener("click", () => openJobModal(el.dataset.job)));
+  }
+
   function render() {
     renderRail();
     renderTopbar();
+    renderChaseBanner();
     if (currentView === "month") renderMonth();
     else if (currentView === "week") renderWeek();
-    else renderDay();
+    else if (currentView === "day") renderDay();
+    else renderFollowUp();
   }
 
   // ---------- Modal ----------
@@ -1142,8 +1220,8 @@
   }
 
   function setModalReadOnly(isAdmin) {
-    const techEditable = new Set(["f_notes"]); // fields techs can still edit on an existing job
-    ["f_jobnum","f_date","f_time","f_travel","f_duration","f_lane","f_type","f_customer","f_address","f_notes","f_status","f_apprentice","f_make","f_model","f_serial","f_warranty"]
+    const techEditable = new Set(["f_notes", "f_attended"]); // fields techs can still edit on an existing job
+    ["f_jobnum","f_date","f_time","f_travel","f_duration","f_lane","f_type","f_customer","f_address","f_notes","f_status","f_apprentice","f_make","f_model","f_serial","f_warranty","f_attended"]
       .forEach(id => { document.getElementById(id).disabled = isAdmin ? false : !techEditable.has(id); });
     document.getElementById("saveJobBtn").style.display = "";
     document.getElementById("saveJobBtn").textContent = isAdmin ? "Save job" : "Save notes";
@@ -1172,6 +1250,7 @@
     document.getElementById("f_model").value = job ? (job.model||"") : "";
     document.getElementById("f_serial").value = job ? (job.serial||"") : "";
     document.getElementById("f_warranty").checked = job ? !!job.warranty : false;
+    document.getElementById("f_attended").checked = job ? !!job.attended : false;
     document.getElementById("warrantyTimerField").style.display = document.getElementById("f_warranty").checked ? "" : "none";
     document.getElementById("timerRow").style.display = job ? "" : "none";
     document.getElementById("f_address").value = job ? (job.address||"") : "";
@@ -1254,6 +1333,7 @@
       model: document.getElementById("f_model").value.trim(),
       serial: document.getElementById("f_serial").value.trim(),
       warranty: document.getElementById("f_warranty").checked,
+      attended: document.getElementById("f_attended").checked,
       address: document.getElementById("f_address").value.trim(),
       mileage: document.getElementById("f_mileage").value ? Number(document.getElementById("f_mileage").value) : null,
       notes: document.getElementById("f_notes").value.trim(),
