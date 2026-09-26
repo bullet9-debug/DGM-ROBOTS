@@ -347,8 +347,10 @@
           <button data-view="week">Week</button>
           <button data-view="day">Day</button>
           <button data-view="followup">Follow-up<span id="followupBadge" class="nav-badge" style="display:none;"></span></button>
+          <button data-view="requests" id="requestsTabBtn" style="display:none;">Requests<span id="requestsBadge" class="nav-badge" style="display:none;"></span></button>
         </div>
         <button class="primary" id="newJobBtn">+ New job</button>
+        <button class="primary" id="requestJobBtn" style="display:none;">+ Request job</button>
       </div>
     </div>
 
@@ -428,6 +430,11 @@
       <input type="text" id="f_customer" placeholder="Customer or site name">
     </div>
 
+    <div class="field">
+      <label for="f_customeremail">Customer email</label>
+      <input type="email" id="f_customeremail" placeholder="For confirmations / invoicing">
+    </div>
+
     <div class="field-row">
       <div class="field">
         <label for="f_make">Make</label>
@@ -501,6 +508,73 @@
       <div class="right">
         <button class="ghost" id="cancelBtn">Cancel</button>
         <button class="primary" id="saveJobBtn">Save job</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="requestOverlay">
+  <div class="modal">
+    <h2>Request a new job</h2>
+    <div style="font-size:12px; color:var(--ink-soft); margin-top:-8px; margin-bottom:14px;">This goes to the office to schedule — it won't appear on the diary until they create the job from it.</div>
+
+    <div class="field">
+      <label for="rf_customer">Customer</label>
+      <input type="text" id="rf_customer" placeholder="Customer or site name">
+    </div>
+
+    <div class="field">
+      <label for="rf_customeremail">Customer email</label>
+      <input type="email" id="rf_customeremail" placeholder="For confirmations / invoicing">
+    </div>
+
+    <div class="field">
+      <label for="rf_address">Address / postcode</label>
+      <input type="text" id="rf_address">
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="rf_make">Make</label>
+        <input type="text" id="rf_make">
+      </div>
+      <div class="field">
+        <label for="rf_model">Model</label>
+        <input type="text" id="rf_model">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="rf_serial">Serial number</label>
+        <input type="text" id="rf_serial">
+      </div>
+      <div class="field">
+        <label for="rf_type">Job type</label>
+        <select id="rf_type">
+          <option value="install">Install</option>
+          <option value="site_visit">Site visit / repair</option>
+          <option value="workshop">Workshop (can't be fixed on site)</option>
+          <option value="demo">Demo</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="rf_warranty" style="width:auto;"> Warranty job
+      </label>
+    </div>
+
+    <div class="field">
+      <label for="rf_notes">Notes for the office</label>
+      <textarea id="rf_notes" rows="3" placeholder="What's needed, anything the customer said, urgency, etc."></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <div class="right" style="width:100%; justify-content:flex-end;">
+        <button class="ghost" id="requestCancelBtn">Cancel</button>
+        <button class="primary" id="requestSubmitBtn">Submit request</button>
       </div>
     </div>
   </div>
@@ -744,6 +818,7 @@
   let state = {
     lanes: FALLBACK_LANES.slice(),
     jobs: [],
+    jobRequests: [],
     workDayStart: localStorage.getItem("fd.workDayStart") || "08:00",
     workDayEnd: localStorage.getItem("fd.workDayEnd") || "17:00",
     workDayMins: 540,
@@ -759,6 +834,7 @@
   let currentView = "month";
   let cursorDate = startOfDay(new Date());
   let modalIsNewJob = true;
+  let pendingRequestId = null;   // set when the open job modal was launched from a tech's job request
 
   function laneById(id) { return state.lanes.find(l => l.id === id); }
   function jobsOn(dateStr) { return state.jobs.filter(j => j.date === dateStr); }
@@ -768,7 +844,7 @@
     return {
       id: r.id, jobNumber: r.job_number || "", date: r.date, time: r.start_time ? r.start_time.slice(0,5) : "",
       duration: r.duration_mins || 0, travel: r.travel_mins || 0, lane: r.lane_id, apprentice: !!r.apprentice,
-      type: r.type, customer: r.customer || "", address: r.address || "", mileage: r.mileage_miles ?? null, notes: r.notes || "",
+      type: r.type, customer: r.customer || "", customerEmail: r.customer_email || "", address: r.address || "", mileage: r.mileage_miles ?? null, notes: r.notes || "",
       make: r.make || "", model: r.model || "", serial: r.serial_number || "", warranty: !!r.warranty, attended: !!r.attended,
       travelActualSecs: r.travel_actual_secs || 0, travelRunningSince: r.travel_running_since || null,
       warrantyActualSecs: r.warranty_actual_secs || 0, warrantyRunningSince: r.warranty_running_since || null,
@@ -779,7 +855,7 @@
     return {
       job_number: j.jobNumber || null, date: j.date, start_time: j.time || null,
       duration_mins: j.duration || 0, travel_mins: j.travel || 0, lane_id: j.lane, apprentice: !!j.apprentice,
-      type: j.type, customer: j.customer || null, address: j.address || null, mileage_miles: j.mileage ?? null, notes: j.notes || null,
+      type: j.type, customer: j.customer || null, customer_email: j.customerEmail || null, address: j.address || null, mileage_miles: j.mileage ?? null, notes: j.notes || null,
       make: j.make || null, model: j.model || null, serial_number: j.serial || null, warranty: !!j.warranty, attended: !!j.attended,
       status: j.status || "planned"
     };
@@ -901,9 +977,12 @@
     document.getElementById("settingsSection").style.display = session.isAdmin ? "" : "none";
     document.getElementById("teamCapacitySection").style.display = session.isAdmin ? "" : "none";
     document.getElementById("newJobBtn").style.display = session.isAdmin ? "" : "none";
+    document.getElementById("requestJobBtn").style.display = session.isAdmin ? "none" : "";
+    document.getElementById("requestsTabBtn").style.display = session.isAdmin ? "" : "none";
 
     await loadLanes();
     await loadJobs();
+    await loadJobRequests();
     subscribeRealtime();
     render();
   }
@@ -917,10 +996,15 @@
     const { data, error } = await sb.from("jobs").select("*").order("date").order("start_time");
     if (!error && data) state.jobs = data.map(dbJobToApp);
   }
+  async function loadJobRequests() {
+    const { data, error } = await sb.from("job_requests").select("*").order("created_at", { ascending: false });
+    if (!error && data) state.jobRequests = data;
+  }
   function subscribeRealtime() {
     sb.channel("jobs-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, async () => { await loadJobs(); render(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "lanes" }, async () => { await loadLanes(); render(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "job_requests" }, async () => { await loadJobRequests(); render(); })
       .subscribe();
   }
 
@@ -1004,18 +1088,24 @@
     document.querySelectorAll(".view-switch button").forEach(b => b.classList.toggle("active", b.dataset.view === currentView));
     const label = document.getElementById("periodLabel");
     const isFollowUp = currentView === "followup";
+    const isRequests = currentView === "requests";
     if (currentView === "month") label.textContent = cursorDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
     else if (currentView === "week") {
       const ws = startOfWeek(cursorDate), we = addDays(ws, 6);
       label.textContent = `${ws.toLocaleDateString(undefined,{day:"numeric",month:"short"})} – ${we.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})}`;
     } else if (isFollowUp) label.textContent = "Past-date jobs";
+    else if (isRequests) label.textContent = "Requests from the team";
     else label.textContent = cursorDate.toLocaleDateString(undefined, { weekday:"long", day:"numeric", month:"long", year:"numeric" });
-    ["prevBtn","nextBtn","todayBtn"].forEach(id => document.getElementById(id).disabled = isFollowUp);
+    ["prevBtn","nextBtn","todayBtn"].forEach(id => document.getElementById(id).disabled = isFollowUp || isRequests);
     document.getElementById("teamToggle").checked = state.activeLanes.length > 1;
     const badge = document.getElementById("followupBadge");
     const needsAction = rebookQueue().length;
     if (needsAction) { badge.textContent = needsAction > 99 ? "99+" : String(needsAction); badge.style.display = ""; }
     else { badge.style.display = "none"; }
+    const reqBadge = document.getElementById("requestsBadge");
+    const pendingCount = pendingRequests().length;
+    if (pendingCount) { reqBadge.textContent = pendingCount > 99 ? "99+" : String(pendingCount); reqBadge.style.display = ""; }
+    else { reqBadge.style.display = "none"; }
   }
 
   // ---------- Month view ----------
@@ -1185,6 +1275,101 @@
     banner.querySelectorAll(".chase-item").forEach(el => el.addEventListener("click", () => openJobModal(el.dataset.job)));
   }
 
+  // ---------- Job requests (submitted by techs) ----------
+  function pendingRequests() { return state.jobRequests.filter(r => r.status === "pending"); }
+
+  function renderRequests() {
+    const el = document.getElementById("content");
+    const reqs = pendingRequests().sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+    if (!reqs.length) { el.innerHTML = `<div class="empty-hint" style="padding:20px;">No open requests from the team.</div>`; return; }
+    el.innerHTML = `<div class="day-lane" style="max-width:640px;">
+      <div class="day-lane-head"><strong style="flex:1;">Job requests</strong><span class="cap-pct">${reqs.length} pending</span></div>
+      <div class="day-lane-body">${reqs.map(r => {
+        const when = new Date(r.created_at).toLocaleString(undefined, { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
+        const details = [r.make, r.model, r.serial_number].filter(Boolean).join(" · ");
+        return `<div class="job-block" style="border-color:var(--amber);" data-req="${r.id}">
+          <div class="job-time">${escapeHtml(when)} · from ${escapeHtml(r.requested_by || "a technician")}</div>
+          <div class="job-cust">${escapeHtml(r.customer || "(no customer name given)")}${r.warranty ? ` <span style="font-size:10px; background:var(--steel-soft); color:var(--steel); padding:1px 5px; border-radius:6px; font-weight:600;">Warranty</span>` : ""}</div>
+          <div class="job-meta">${r.customer_email ? escapeHtml(r.customer_email)+" · " : ""}${r.address ? escapeHtml(r.address)+" · " : ""}${typeLabel(r.type)}</div>
+          ${details ? `<div class="job-meta">${escapeHtml(details)}</div>` : ""}
+          ${r.notes ? `<div class="job-meta" style="white-space:pre-wrap;">${escapeHtml(r.notes)}</div>` : ""}
+          <div style="margin-top:8px; display:flex; gap:8px;">
+            <button class="primary req-create" data-req="${r.id}" style="font-size:12px; padding:5px 10px;">Create job</button>
+            <button class="ghost req-dismiss" data-req="${r.id}" style="font-size:12px; padding:5px 10px;">Dismiss</button>
+          </div>
+        </div>`;
+      }).join("")}</div>
+    </div>`;
+    el.querySelectorAll(".req-create").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModalFromRequest(b.dataset.req); }));
+    el.querySelectorAll(".req-dismiss").forEach(b => b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!confirm("Dismiss this request without creating a job?")) return;
+      await sb.from("job_requests").update({ status: "dismissed" }).eq("id", b.dataset.req);
+      await loadJobRequests(); render();
+    }));
+  }
+
+  function openJobModalFromRequest(reqId) {
+    const req = state.jobRequests.find(r => r.id === reqId);
+    if (!req) return;
+    openJobModal(null);
+    document.getElementById("f_customer").value = req.customer || "";
+    document.getElementById("f_customeremail").value = req.customer_email || "";
+    document.getElementById("f_address").value = req.address || "";
+    updateMapsLink();
+    if (document.getElementById("f_address").value.trim()) debouncedUpdateMileage();
+    document.getElementById("f_make").value = req.make || "";
+    document.getElementById("f_model").value = req.model || "";
+    document.getElementById("f_serial").value = req.serial_number || "";
+    if (req.type) document.getElementById("f_type").value = req.type;
+    document.getElementById("f_warranty").checked = !!req.warranty;
+    document.getElementById("warrantyTimerField").style.display = req.warranty ? "" : "none";
+    const when = new Date(req.created_at).toLocaleDateString();
+    const prefix = `Requested by ${req.requested_by || "technician"} on ${when}:\n`;
+    document.getElementById("f_notes").value = (prefix + (req.notes || "")).trim();
+    pendingRequestId = req.id;
+  }
+
+  function openRequestModal() {
+    document.getElementById("rf_customer").value = "";
+    document.getElementById("rf_customeremail").value = "";
+    document.getElementById("rf_address").value = "";
+    document.getElementById("rf_make").value = "";
+    document.getElementById("rf_model").value = "";
+    document.getElementById("rf_serial").value = "";
+    document.getElementById("rf_type").value = "site_visit";
+    document.getElementById("rf_warranty").checked = false;
+    document.getElementById("rf_notes").value = "";
+    document.getElementById("requestOverlay").classList.add("open");
+    document.getElementById("rf_customer").focus();
+  }
+  function closeRequestModal() { document.getElementById("requestOverlay").classList.remove("open"); }
+  async function submitJobRequest() {
+    const customer = document.getElementById("rf_customer").value.trim();
+    const notes = document.getElementById("rf_notes").value.trim();
+    if (!customer && !notes) { alert("Add at least a customer name or a note so the office knows what this is."); return; }
+    const btn = document.getElementById("requestSubmitBtn");
+    btn.disabled = true;
+    const row = {
+      requested_by: session ? session.name : null,
+      customer: customer || null,
+      customer_email: document.getElementById("rf_customeremail").value.trim() || null,
+      address: document.getElementById("rf_address").value.trim() || null,
+      make: document.getElementById("rf_make").value.trim() || null,
+      model: document.getElementById("rf_model").value.trim() || null,
+      serial_number: document.getElementById("rf_serial").value.trim() || null,
+      type: document.getElementById("rf_type").value,
+      warranty: document.getElementById("rf_warranty").checked,
+      notes: notes || null,
+      status: "pending"
+    };
+    const { error } = await sb.from("job_requests").insert(row);
+    btn.disabled = false;
+    if (error) { alert("Couldn't submit that — check your connection and try again."); return; }
+    closeRequestModal();
+    alert("Sent to the office.");
+  }
+
   function render() {
     renderRail();
     renderTopbar();
@@ -1192,6 +1377,7 @@
     if (currentView === "month") renderMonth();
     else if (currentView === "week") renderWeek();
     else if (currentView === "day") renderDay();
+    else if (currentView === "requests") renderRequests();
     else renderFollowUp();
   }
 
@@ -1221,7 +1407,7 @@
 
   function setModalReadOnly(isAdmin) {
     const techEditable = new Set(["f_notes", "f_attended"]); // fields techs can still edit on an existing job
-    ["f_jobnum","f_date","f_time","f_travel","f_duration","f_lane","f_type","f_customer","f_address","f_notes","f_status","f_apprentice","f_make","f_model","f_serial","f_warranty","f_attended"]
+    ["f_jobnum","f_date","f_time","f_travel","f_duration","f_lane","f_type","f_customer","f_customeremail","f_address","f_notes","f_status","f_apprentice","f_make","f_model","f_serial","f_warranty","f_attended"]
       .forEach(id => { document.getElementById(id).disabled = isAdmin ? false : !techEditable.has(id); });
     document.getElementById("saveJobBtn").style.display = "";
     document.getElementById("saveJobBtn").textContent = isAdmin ? "Save job" : "Save notes";
@@ -1229,6 +1415,7 @@
   }
 
   function openJobModal(jobId, presetDate, presetLane) {
+    pendingRequestId = null;
     populateLaneSelect();
     populateDurationSelect();
     const overlay = document.getElementById("overlay");
@@ -1246,6 +1433,7 @@
     document.getElementById("f_lane").value = job ? job.lane : (presetLane || state.lanes[0].id);
     document.getElementById("f_apprentice").checked = job ? !!job.apprentice : false;
     document.getElementById("f_customer").value = job ? (job.customer||"") : "";
+    document.getElementById("f_customeremail").value = job ? (job.customerEmail||"") : "";
     document.getElementById("f_make").value = job ? (job.make||"") : "";
     document.getElementById("f_model").value = job ? (job.model||"") : "";
     document.getElementById("f_serial").value = job ? (job.serial||"") : "";
@@ -1298,7 +1486,7 @@
     updateApprenticeVisibility();
   });
 
-  function closeModal() { document.getElementById("overlay").classList.remove("open"); stopTimerTick(); }
+  function closeModal() { document.getElementById("overlay").classList.remove("open"); stopTimerTick(); pendingRequestId = null; }
 
   function findDuplicateJobs(job, excludeId) {
     const num = (job.jobNumber || "").trim().toLowerCase();
@@ -1329,6 +1517,7 @@
       apprentice: document.getElementById("f_apprentice").checked,
       type: document.getElementById("f_type").value,
       customer: document.getElementById("f_customer").value.trim(),
+      customerEmail: document.getElementById("f_customeremail").value.trim(),
       make: document.getElementById("f_make").value.trim(),
       model: document.getElementById("f_model").value.trim(),
       serial: document.getElementById("f_serial").value.trim(),
@@ -1360,6 +1549,11 @@
     const dbRow = appJobToDb(job);
     if (id) await sb.from("jobs").update(dbRow).eq("id", id);
     else await sb.from("jobs").insert(dbRow);
+    if (pendingRequestId) {
+      await sb.from("job_requests").update({ status: "actioned" }).eq("id", pendingRequestId);
+      pendingRequestId = null;
+      await loadJobRequests();
+    }
     await loadJobs(); closeModal(); render();
   }
   async function deleteCurrentJob() {
@@ -1388,6 +1582,9 @@
   document.getElementById("newJobBtn").addEventListener("click", () => openJobModal(null, fmtISODate(cursorDate)));
   document.getElementById("cancelBtn").addEventListener("click", closeModal);
   document.getElementById("saveJobBtn").addEventListener("click", saveJobFromForm);
+  document.getElementById("requestJobBtn").addEventListener("click", openRequestModal);
+  document.getElementById("requestCancelBtn").addEventListener("click", closeRequestModal);
+  document.getElementById("requestSubmitBtn").addEventListener("click", submitJobRequest);
   document.getElementById("deleteJobBtn").addEventListener("click", deleteCurrentJob);
   document.getElementById("overlay").addEventListener("click", (e) => { if (e.target.id === "overlay") closeModal(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
