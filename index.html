@@ -178,25 +178,91 @@
   .chase-banner strong { color: var(--amber); }
   .chase-item { cursor: pointer; font-weight: 600; text-decoration: underline; text-decoration-style: dotted; }
 
+  /* collapsible form sections */
+  details.collapse { margin: 12px 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-raised); }
+  details.collapse > summary {
+    cursor: pointer; padding: 9px 12px; font-size: 12.5px; font-weight: 700; color: var(--ink);
+    list-style: none; display: flex; align-items: center; gap: 8px; user-select: none;
+  }
+  details.collapse > summary::-webkit-details-marker { display: none; }
+  details.collapse > summary::before { content: "\25B8"; color: var(--ink-soft); font-size: 11px; }
+  details.collapse[open] > summary::before { content: "\25BE"; }
+  details.collapse > summary:hover { background: var(--green-soft); }
+  details.collapse .collapse-body { padding: 10px 12px 12px; border-top: 1px solid var(--line-soft); }
+  details.collapse .collapse-body > .field:first-child,
+  details.collapse .collapse-body > .field-row:first-child,
+  details.collapse .collapse-body > .install-grid:first-child { margin-top: 0; }
+
+  /* the diary only shows today onward, so dim what's already gone */
+  .month-cell.past .month-date, .swim-cell.past { opacity: .5; }
+  .past-notice {
+    margin: 0 0 12px; padding: 9px 12px; font-size: 12.5px; color: var(--ink-soft);
+    background: var(--steel-soft); border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  .past-notice a { color: var(--green); font-weight: 700; }
+
+  /* transient message */
+  #toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: var(--radius);
+    font-size: 12.5px; font-weight: 600; box-shadow: var(--shadow); z-index: 300;
+    max-width: min(560px, 92vw); text-align: center; opacity: 0; pointer-events: none;
+    transition: opacity .18s ease;
+  }
+  #toast.show { opacity: 1; }
+
+  /* setup view */
+  .setup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 14px; align-items: start; }
+  .setup-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-raised); padding: 16px; }
+  .setup-card h3 { margin: 0 0 4px; font-size: 14px; }
+  .setup-note { font-size: 12px; color: var(--ink-soft); margin: 0 0 12px; line-height: 1.5; }
+  .setup-note code { background: var(--green-soft); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+  .setup-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .setup-hint { font-size: 11.5px; color: var(--ink-soft); }
+  .setup-card .data-table td { vertical-align: middle; }
+  .setup-error {
+    grid-column: 1 / -1; margin-bottom: 14px; padding: 11px 13px; font-size: 12.5px;
+    background: var(--danger-soft); border: 1px solid var(--danger); border-radius: var(--radius); color: var(--ink);
+  }
+  .setup-error b { display: block; margin-bottom: 3px; }
+  .setup-error code { font-size: 11.5px; word-break: break-word; }
+  @media (max-width: 720px) { .setup-grid { grid-template-columns: 1fr; } }
+
   .content { flex: 1; padding: 20px 24px; overflow: auto; }
 
-  /* ===== Month view ===== */
-  .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
-  .month-dow { font-size: 11px; color: var(--ink-soft); text-align: left; padding: 6px 8px; border-right: 1px solid var(--line); font-weight: 600; }
+  /* ===== Month view =====
+     The grid opens on the current week, so the days you can still book are the
+     first thing on screen, and it carries on past the end of the month so the
+     following month's days are there to see how busy the weeks ahead are.
+     Nothing scrolls inside it - the whole window is on the page. */
+  .month-box {
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--line);
+  }
+  /* minmax(0, 1fr) on both grids, or a long job name stretches one column and
+     the day names stop lining up with the days underneath them. */
+  .month-head {
+    position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+    background: var(--paper-raised); gap: 1px;
+  }
+  .month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--line); }
+  .month-dow { font-size: 11px; color: var(--ink-soft); text-align: left; padding: 6px 8px; font-weight: 600; }
   .month-cell {
     border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
-    min-height: 96px; padding: 6px; cursor: pointer; background: var(--paper-raised);
-    display: flex; flex-direction: column; gap: 4px;
+    min-height: 96px; min-width: 0; padding: 6px; cursor: pointer; background: var(--paper-raised);
+    display: flex; flex-direction: column; gap: 4px; overflow: hidden;
   }
   .month-cell:hover { background: var(--paper); }
-  .month-cell.out { background: var(--paper); opacity: 0.45; }
+  .month-cell.out { background: var(--paper); }
+  .month-cell.out .month-date { opacity: .55; font-weight: 500; }
   .month-cell.today { box-shadow: inset 0 0 0 2px var(--green); }
-  .month-date { font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
-  .month-date .cap-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); display: none; }
+  .month-date { font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+  .month-date.over { color: var(--danger); }
+  .month-date .cap-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); display: none; flex: none; }
   .month-date.over .cap-dot { display: block; }
   .chip {
     font-size: 11px; padding: 2px 6px; border-radius: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    border-left: 3px solid; line-height: 1.5;
+    border-left: 3px solid; line-height: 1.5; max-width: 100%; min-width: 0;
   }
   .chip-more { font-size: 10px; color: var(--ink-soft); padding: 0 6px; }
 
@@ -246,9 +312,42 @@
   /* Day view detail lanes */
   .day-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
   .day-lane { border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-raised); overflow: hidden; }
-  .day-lane-head { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: between; gap: 8px; }
+  .day-lane-head { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .day-lane-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
   .day-lane-body .empty-hint { font-size: 12px; color: var(--ink-soft); font-style: italic; padding: 4px 2px; }
+
+  /* ===== Tables (mileage / bays) ===== */
+  .data-wrap { border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-raised); overflow: auto; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th, .data-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  .data-table thead th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); font-weight: 700; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table td.num, .data-table th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .data-table tfoot td { font-weight: 700; border-top: 1px solid var(--line); }
+  .data-table .today-col { color: var(--green); }
+  .lane-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  .day-total-line { font-size: 12px; color: var(--ink-soft); padding: 10px 12px; border-top: 1px solid var(--line-soft); }
+  .issue-banner { margin: 0 0 14px; padding: 10px 14px; background: var(--amber-soft); border: 1px solid var(--amber); border-radius: var(--radius); font-size: 12px; display: flex; align-items: center; gap: 10px; }
+  .issue-banner button { padding: 4px 9px; font-size: 11px; }
+
+  /* ===== Workshop bays ===== */
+  .bay-cell { min-width: 120px; }
+  .bay-job { border-left: 3px solid; border-radius: var(--radius); padding: 4px 6px; font-size: 11px; margin-bottom: 3px; background: var(--paper); cursor: pointer; }
+  .bay-job:hover { filter: brightness(0.97); }
+  .bay-none { color: var(--ink-soft); }
+
+  /* ===== Install detail ===== */
+  .modal.wide { max-width: 720px; }
+  .sub-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); margin: 4px 0 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+  .install-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .install-grid .field { margin-bottom: 0; }
+  .chain-strip { font-size: 12px; padding: 8px 10px; border-radius: var(--radius); background: var(--steel-soft); color: var(--steel); border: 1px solid var(--steel); margin-bottom: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .chain-strip .chain-link { cursor: pointer; text-decoration: underline; font-weight: 600; }
+  .chain-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chain-actions button { font-size: 12px; padding: 6px 10px; }
+  .tag-miles { font-size: 10px; background: var(--green-soft); color: var(--green); padding: 1px 5px; border-radius: 6px; font-weight: 600; }
+  .tag-bay { font-size: 10px; background: var(--steel-soft); color: var(--steel); padding: 1px 5px; border-radius: 6px; font-weight: 600; }
+  .tag-chain { font-size: 10px; background: var(--amber-soft); color: var(--amber); padding: 1px 5px; border-radius: 6px; font-weight: 600; }
 
   /* ===== Modal ===== */
   .overlay {
@@ -286,6 +385,12 @@
     .rail { width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; border-right: none; border-bottom: 1px solid var(--line); }
     .rail-foot { margin-top: 0; flex-direction: row; }
     .day-lanes { grid-template-columns: 1fr; }
+    .install-grid { grid-template-columns: 1fr; }
+  }
+  @media print {
+    .rail, .topbar, .chase-banner, .modal-actions, #overlay, #loginGate, #requestOverlay, #toast { display: none !important; }
+    .content { padding: 0; overflow: visible; }
+    body { background: #fff; color: #000; }
   }
 </style>
 </head>
@@ -324,7 +429,7 @@
     <div class="rail-foot">
       <button class="ghost" id="exportBtn">Export backup (.json)</button>
       <div id="whoami" style="font-size:12px; color:var(--ink-soft); padding:4px 2px;"></div>
-      <button class="ghost" id="signOutBtn" style="display:none;">Change access code</button>
+      <button class="ghost" id="signOutBtn" style="display:none;">Sign out</button>
     </div>
   </aside>
 
@@ -346,8 +451,11 @@
           <button data-view="month">Month</button>
           <button data-view="week">Week</button>
           <button data-view="day">Day</button>
+          <button data-view="bays">Workshop</button>
+          <button data-view="mileage">Mileage</button>
           <button data-view="followup">Follow-up<span id="followupBadge" class="nav-badge" style="display:none;"></span></button>
           <button data-view="requests" id="requestsTabBtn" style="display:none;">Requests<span id="requestsBadge" class="nav-badge" style="display:none;"></span></button>
+          <button data-view="setup" id="setupTabBtn" style="display:none;">Setup</button>
         </div>
         <button class="primary" id="newJobBtn">+ New job</button>
         <button class="primary" id="requestJobBtn" style="display:none;">+ Request job</button>
@@ -362,9 +470,11 @@
 <div class="overlay open" id="loginGate" style="z-index:100;"></div>
 
 <div class="overlay" id="overlay">
-  <div class="modal">
+  <div class="modal wide" id="jobModal">
     <h2 id="modalTitle">New job</h2>
     <input type="hidden" id="jobId">
+    <div id="chainStrip"></div>
+    <div class="chain-actions" id="chainActions"></div>
 
     <div class="field">
       <label for="f_address">Address / postcode</label>
@@ -393,26 +503,24 @@
         <input type="time" id="f_time">
       </div>
       <div class="field">
-        <label for="f_travel">Travel buffer (min)</label>
-        <input type="number" id="f_travel" min="0" step="5">
+        <label for="f_duration">Estimated duration</label>
+        <select id="f_duration"></select>
       </div>
     </div>
 
     <div class="field-row">
       <div class="field">
-        <label for="f_duration">Estimated duration</label>
-        <select id="f_duration"></select>
-      </div>
-      <div class="field">
         <label for="f_lane">Assigned to</label>
         <select id="f_lane"></select>
       </div>
-    </div>
-
-    <div class="field" id="apprenticeField" style="display:none;">
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-        <input type="checkbox" id="f_apprentice" style="width:auto;"> Apprentice riding along
-      </label>
+      <div class="field">
+        <label for="f_status">Status</label>
+        <select id="f_status">
+          <option value="planned">Planned</option>
+          <option value="sent">Date sent to customer</option>
+          <option value="confirmed">Confirmed</option>
+        </select>
+      </div>
     </div>
 
     <div class="field">
@@ -420,9 +528,29 @@
       <select id="f_type">
         <option value="install">Install</option>
         <option value="site_visit">Site visit / repair</option>
+        <option value="fetch">Fetch from customer</option>
         <option value="workshop">Workshop (can't be fixed on site)</option>
+        <option value="deliver">Deliver back to customer</option>
         <option value="demo">Demo</option>
       </select>
+      <div id="f_linkRoleField" class="field" style="display:none; margin-top:8px;">
+        <label for="f_linkrole">This job is the...</label>
+        <select id="f_linkrole">
+          <option value="">Not part of a chain</option>
+          <option value="collect">Collection leg (going to fetch)</option>
+          <option value="workshop">Workshop work</option>
+          <option value="deliver">Return leg (going back out)</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="f_bayField" class="field" style="display:none;">
+      <label for="f_bay">Workshop bay</label>
+      <div style="display:flex; gap:8px;">
+        <select id="f_bay"></select>
+        <button type="button" class="ghost" id="f_addBayBtn" style="white-space:nowrap;">New bay</button>
+      </div>
+      <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Bays come from the Workshop view. Leave blank for a drop-off that isn't occupying a bay.</div>
     </div>
 
     <div class="field">
@@ -430,82 +558,118 @@
       <input type="text" id="f_customer" placeholder="Customer or site name">
     </div>
 
-    <div class="field">
-      <label for="f_customeremail">Customer email</label>
-      <input type="email" id="f_customeremail" placeholder="For confirmations / invoicing">
-    </div>
-
+    <div class="sub-head" id="mileageHead">Mileage for invoicing</div>
     <div class="field-row">
       <div class="field">
-        <label for="f_make">Make</label>
-        <input type="text" id="f_make">
+        <label for="f_mileageMode">How is this job driven?</label>
+        <select id="f_mileageMode">
+          <option value="chain">Chained — continue from the previous job</option>
+          <option value="round">Round trip — out and back to the depot</option>
+        </select>
       </div>
       <div class="field">
-        <label for="f_model">Model</label>
-        <input type="text" id="f_model">
+        <label for="f_mileageOverride">Manual override (miles)</label>
+        <input type="number" id="f_mileageOverride" step="0.1" min="0" placeholder="blank = use route">
+        <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Only used if you need to substitute a real odometer reading.</div>
       </div>
     </div>
-
-    <div class="field">
-      <label for="f_serial">S/N</label>
-      <input type="text" id="f_serial">
-    </div>
-
-    <div class="field">
-      <label for="f_notes">Notes</label>
-      <textarea id="f_notes" rows="2"></textarea>
-    </div>
-
-    <div class="field">
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-        <input type="checkbox" id="f_warranty" style="width:auto;"> Warranty job
-      </label>
-    </div>
+    <div id="distanceIssue" style="display:none; font-size:12px; color:var(--amber); background:var(--amber-soft); border:1px solid var(--amber); border-radius:var(--radius); padding:7px 9px; margin-bottom:10px;"></div>
 
     <div class="field">
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
         <input type="checkbox" id="f_attended" style="width:auto;"> Attended — job was actually done
       </label>
-      <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Once the date passes, attended jobs move to Follow-up → Invoicing/warranty; everything else past its date drops into Needs rebooking.</div>
+      <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Once the day passes, this job leaves the diary and moves to Follow-up → Invoicing. Untick nothing else; unattended past jobs go to Needs rebooking.</div>
     </div>
 
-    <div class="field-row" id="timerRow" style="display:none;">
-      <div class="field" style="margin-bottom:0;">
-        <label>Travel timer</label>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span id="travelTimerDisplay" style="font-variant-numeric:tabular-nums; font-weight:600;">0:00:00</span>
-          <button type="button" id="travelTimerBtn" class="ghost" style="padding:5px 9px; font-size:12px;">Start</button>
+    <details class="collapse" id="installDetails" style="display:none;">
+      <summary id="installHead">Install detail</summary>
+      <div class="collapse-body">
+        <div class="install-grid" id="installWrap" style="display:none;"></div>
+      </div>
+    </details>
+
+    <details class="collapse" id="moreDetails">
+      <summary>More details</summary>
+      <div class="collapse-body">
+        <div class="field-row">
+          <div class="field">
+            <label for="f_travel">Travel buffer (min)</label>
+            <input type="number" id="f_travel" min="0" step="5">
+          </div>
+          <div class="field" id="apprenticeField" style="display:none;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:22px;">
+              <input type="checkbox" id="f_apprentice" style="width:auto;"> Apprentice riding along
+            </label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="f_customeremail">Customer email</label>
+          <input type="email" id="f_customeremail" placeholder="For confirmations / invoicing">
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="f_make">Make</label>
+            <input type="text" id="f_make">
+          </div>
+          <div class="field">
+            <label for="f_model">Model</label>
+            <input type="text" id="f_model">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="f_serial">S/N</label>
+          <input type="text" id="f_serial">
+        </div>
+
+        <div class="field">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="f_warranty" style="width:auto;"> Warranty job
+          </label>
+        </div>
+
+        <div class="field">
+          <label for="f_notes">Notes</label>
+          <textarea id="f_notes" rows="2"></textarea>
+        </div>
+
+        <div class="field-row" id="timerRow" style="display:none;">
+          <div class="field" style="margin-bottom:0;">
+            <label>Travel timer</label>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span id="travelTimerDisplay" style="font-variant-numeric:tabular-nums; font-weight:600;">0:00:00</span>
+              <button type="button" id="travelTimerBtn" class="ghost" style="padding:5px 9px; font-size:12px;">Start</button>
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:0;" id="warrantyTimerField">
+            <label>Warranty timer</label>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span id="warrantyTimerDisplay" style="font-variant-numeric:tabular-nums; font-weight:600;">0:00:00</span>
+              <button type="button" id="warrantyTimerBtn" class="ghost" style="padding:5px 9px; font-size:12px;">Start</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="outlook-box">
+          <div class="ol-title">Outlook confirmation <span class="badge-soon">Coming soon</span></div>
+          <div class="ol-status">Not connected yet — once linked, sending a date here will email the customer and pick up their reply automatically. For now, use the Status field above to track this manually.</div>
+          <div style="margin-top:8px; display:flex; gap:8px;">
+            <button disabled title="Connect Outlook to enable">Send date by email</button>
+          </div>
         </div>
       </div>
-      <div class="field" style="margin-bottom:0;" id="warrantyTimerField">
-        <label>Warranty timer</label>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span id="warrantyTimerDisplay" style="font-variant-numeric:tabular-nums; font-weight:600;">0:00:00</span>
-          <button type="button" id="warrantyTimerBtn" class="ghost" style="padding:5px 9px; font-size:12px;">Start</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="field">
-      <label for="f_status">Status</label>
-      <select id="f_status">
-        <option value="planned">Planned</option>
-        <option value="sent">Date sent to customer</option>
-        <option value="confirmed">Confirmed</option>
-      </select>
-    </div>
-
-    <div class="outlook-box">
-      <div class="ol-title">Outlook confirmation <span class="badge-soon">Coming soon</span></div>
-      <div class="ol-status">Not connected yet — once linked, sending a date here will email the customer and pick up their reply automatically. For now, use the Status field above to track this manually.</div>
-      <div style="margin-top:8px; display:flex; gap:8px;">
-        <button disabled title="Connect Outlook to enable">Send date by email</button>
-      </div>
-    </div>
+    </details>
 
     <div class="modal-actions">
-      <button class="ghost" id="deleteJobBtn" style="color:var(--danger);">Delete</button>
+      <div style="display:flex; gap:8px;">
+        <button class="ghost" id="deleteJobBtn" style="color:var(--danger);">Delete</button>
+        <button class="ghost" id="printCardBtn" style="display:none;">Print job card</button>
+      </div>
       <div class="right">
+        <span id="viewerJobNote" style="display:none; font-size:12px; color:var(--ink-soft); align-self:center;">View only — use “Request job” and the office will book it</span>
         <button class="ghost" id="cancelBtn">Cancel</button>
         <button class="primary" id="saveJobBtn">Save job</button>
       </div>
@@ -554,7 +718,9 @@
         <select id="rf_type">
           <option value="install">Install</option>
           <option value="site_visit">Site visit / repair</option>
+          <option value="fetch">Fetch from customer</option>
           <option value="workshop">Workshop (can't be fixed on site)</option>
+          <option value="deliver">Deliver back to customer</option>
           <option value="demo">Demo</option>
         </select>
       </div>
@@ -610,7 +776,60 @@
     if (m === 0) return `${h}hr`;
     return `${h}hr ${m}min`;
   }
-  const DEFAULT_DURATION_BY_TYPE = { install: 240, site_visit: 120, workshop: 120 };
+  const DEFAULT_DURATION_BY_TYPE = { install: 240, site_visit: 120, fetch: 120, workshop: 120, deliver: 30 };
+
+  // ---------- Capability probing ----------
+  // The diary grew columns after the first version shipped. Rather than assume they
+  // all exist, probe once at boot and drop any we can't write. That way this file
+  // keeps working against an older database while the migration rolls out.
+  const NEW_COLS = ["install_details","workshop_bay","linked_job_id","link_role","mileage_mode","mileage_override","distance_source","distance_error","follow_up_on","handover_signed"];
+  const CAPS = { probed: false, cols: {} };
+  function capCol(name) { return !!CAPS.cols[name]; }
+  function stripUnsupported(obj) {
+    const out = {};
+    for (const k of Object.keys(obj || {})) {
+      if (NEW_COLS.indexOf(k) === -1 || capCol(k)) out[k] = obj[k];
+    }
+    return out;
+  }
+  async function probeCapabilities() {
+    if (CAPS.probed) return CAPS.cols;
+    CAPS.cols = {};
+    try {
+      const { data, error } = await sb.from("jobs").select(NEW_COLS.join(",")).limit(1);
+      if (!error && data && data.length) {
+        const row = data[0] || {};
+        NEW_COLS.forEach(c => { if (c in row) CAPS.cols[c] = true; });
+      } else {
+        NEW_COLS.forEach(c => { CAPS.cols[c] = true; }); // can't tell — assume present, writes will report
+      }
+    } catch (e) {
+      NEW_COLS.forEach(c => { CAPS.cols[c] = true; });
+    }
+    CAPS.probed = true;
+    return CAPS.cols;
+  }
+
+  // ---------- Install detail fields ----------
+  const INSTALL_SPEC = [
+    ["wireLength","Boundary wire (m)","number","e.g. 180"],
+    ["stakes","Stakes fitted","number","e.g. 60"],
+    ["trenching","Trenching (m)","number","e.g. 25"],
+    ["areaSqm","Garden area (m²)","number","e.g. 450"],
+    ["cableRun","Cable run to dock (m)","number","e.g. 6"],
+    ["dockPosition","Dock position","text","e.g. left of garage"],
+    ["dockPower","Dock power supply","text","e.g. outside socket"],
+    ["cutOffHeight","Cut-off height (mm)","number","e.g. 45"],
+    ["appPaired","App paired","select",""],
+    ["appPin","App PIN given","text","PIN handed to customer"],
+    ["wifiSsid","WiFi network","text","SSID"],
+    ["wifiPassword","WiFi password","text",""],
+    ["firmware","Firmware","text","e.g. 1.94.20"],
+    ["zones","Zones set up","text","e.g. 2 zones"],
+    ["schedule","Mowing schedule","text","e.g. Mon/Wed/Fri 22:00"],
+    ["warrantyStart","Warranty start","date",""],
+    ["walkthrough","Walkthrough given","select",""]
+  ];
 
   function timeToMins(t) { if (!t) return null; const [h,m] = t.split(":").map(Number); return h*60+m; }
   function minsToClock(m) { const h24 = Math.floor(m/60)%24, mm = m%60; const ap = h24>=12?"pm":"am"; let h12 = h24%12; if (h12===0) h12=12; return `${h12}:${String(mm).padStart(2,"0")}${ap}`; }
@@ -655,7 +874,209 @@
       return shortest.distance / 1609.344; // metres -> miles
     } catch (e) { return null; }
   }
+  // ---------- Chained mileage engine ----------
+  // The single-job round trip above is fine on its own, but it double-counts badly on
+  // a day with three calls: each job claims the full depot→site→depot journey. Real
+  // mileage is one continuous drive. This engine builds the day's actual route —
+  // depot → job 1 → job 2 → … → depot — and attributes the driving to each job so the
+  // per-job numbers still add up to the day's total for invoicing.
+  const MAX_PLAUSIBLE_MILES = 250;
+  const LS_GEO = "fd.geo.v2";
+  const LS_ROUTE = "fd.route.v2";
+  function lsGet(key, fallback) { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch (e) { return fallback; } }
+  function lsSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+  function haversineMiles(a, b) {
+    const R = 3958.7613, toRad = Math.PI/180;
+    const dLat = (b.lat-a.lat)*toRad, dLon = (b.lon-a.lon)*toRad;
+    const s = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(a.lat*toRad)*Math.cos(b.lat*toRad)*Math.sin(dLon/2)*Math.sin(dLon/2);
+    return 2*R*Math.asin(Math.min(1, Math.sqrt(s)));
+  }
+  let baseGeoPromise = null;
+  function baseGeo() {
+    if (baseGeoPromise) return baseGeoPromise;
+    const cache = lsGet(LS_GEO, {});
+    if (cache.base) { baseGeoPromise = Promise.resolve(cache.base); return baseGeoPromise; }
+    baseGeoPromise = geocodePostcode(HQ_POSTCODE).then(g => {
+      if (g) { cache.base = g; lsSet(LS_GEO, cache); }
+      return g;
+    });
+    return baseGeoPromise;
+  }
+  purgeLegacyAddressCache();
+  // Postcode only, on purpose. A full address is a customer's home, and posting
+  // it to a free public geocoder hands it to a third party nobody here has
+  // signed a contract with. So: the postcode goes to postcodes.io, coordinates go
+  // to OSRM, and the house and street stay on this machine. If the address has no
+  // postcode we say so and the office enters the miles by hand.
+  async function geocodeSite(addr) {
+    if (!String(addr || "").trim()) return { error: "no address on the job" };
+    const base = await baseGeo();
+    if (!base) return { error: "depot postcode could not be looked up" };
+
+    const pc = extractPostcode(addr);
+    if (!pc) return { error: `no postcode on the address, so the drive was not worked out — add the postcode, or type the miles in` };
+
+    const g = await geocodePostcode(pc);
+    if (!g) return { error: `postcode ${pc} could not be looked up, so the drive was not worked out — type the miles in` };
+    const d = haversineMiles(base, g);
+    if (d > MAX_PLAUSIBLE_MILES) return { error: `postcode ${pc} is ${Math.round(d)} mi from the depot — check the address` };
+    return { ...g, straightLine: Math.round(d*10)/10, via: "postcode" };
+  }
+  // Anything geocoded from a full address by an earlier version is dropped once.
+  // The cache itself is only ever read by this machine, but it holds street
+  // addresses as keys and nothing needs them any more.
+  function purgeLegacyAddressCache() {
+    try {
+      const cache = lsGet(LS_GEO, {});
+      const stale = Object.keys(cache).filter(k => cache[k] && cache[k].via === "nominatim");
+      if (!stale.length) return;
+      stale.forEach(k => { delete cache[k]; });
+      lsSet(LS_GEO, cache);
+    } catch (e) { /* nothing worth failing over */ }
+  }
+  async function routeMiles(a, b) {
+    if (!a || !b) return 0;
+    if (Math.abs(a.lat-b.lat) < 1e-7 && Math.abs(a.lon-b.lon) < 1e-7) return 0;
+    const key = [a.lat.toFixed(4), a.lon.toFixed(4), b.lat.toFixed(4), b.lon.toFixed(4)].join(";");
+    const cache = lsGet(LS_ROUTE, {});
+    if (cache[key] != null) return cache[key];
+    const url = `https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?alternatives=true&overview=false`;
+    try {
+      const res = await fetch(url);
+      const j = await res.json();
+      if (!j.routes || !j.routes.length) return null;
+      let shortest = Infinity;
+      for (const rt of j.routes) if (rt.distance < shortest) shortest = rt.distance;
+      const mi = shortest / 1609.34;
+      cache[key] = mi; lsSet(LS_ROUTE, cache);
+      return mi;
+    } catch (e) { return null; }
+  }
+  // Build the real driving route for one lane on one day and split it between the jobs.
+  // `draft` lets the job modal ask "if I saved this as-is, what would the day look like?"
+  async function computeLaneDay(dateStr, laneId, draft) {
+    const base = await baseGeo();
+    let jobs = jobsOn(dateStr).filter(j => j.lane === laneId);
+    if (draft) {
+      jobs = jobs.filter(j => j.id !== draft.id);
+      jobs = jobs.concat([draft]);
+    }
+    jobs.sort((a,b) => (a.time||"").localeCompare(b.time||"") || String(a.id).localeCompare(String(b.id)));
+    const stops = jobs.filter(j => j.address && String(j.address).trim());
+    const byJob = {}, legs = [], errors = [];
+    if (!base) {
+      for (const j of stops) errors.push(`${j.customer || "Job"}: ${j.address} (depot location unknown)`);
+      return { base: null, legs, byJob, total: 0, errors };
+    }
+    if (!stops.length) return { base, legs, byJob, total: 0, errors };
+
+    let total = 0;
+    let cursor = base;
+    let lastStop = null;
+    // Attribute every leg to the job that caused it, then apply any manual override
+    // afterwards. Doing the override last keeps per-job miles adding up to the day
+    // total, which is what the mileage claim depends on.
+    const addLeg = (jobId, fromLabel, toLabel, mi, bucket) => {
+      if (mi == null) return;
+      legs.push({ from: fromLabel, to: toLabel, miles: mi, jobId });
+      total += mi;
+      bucket[jobId] = (bucket[jobId] || 0) + mi;
+    };
+
+    for (const j of stops) {
+      const geo = await geocodeSite(j.address);
+      if (geo && geo.error) {
+        errors.push(`${j.customer || "Job"} (${j.address}): ${geo.error}`);
+        byJob[j.id] = 0;
+        legs.push({ from: cursor === base ? "Depot" : "Previous job", to: j.customer || j.address, miles: 0, jobId: j.id, error: geo.error });
+        continue;
+      }
+      const mode = j.mileageMode === "round" ? "round" : "chain";
+      if (mode === "round") {
+        // Close the loop first so the depot is the starting point, then out and back.
+        if (cursor !== base) addLeg(j.id, "Previous job", "Depot", await routeMiles(cursor, base), byJob);
+        addLeg(j.id, "Depot", j.customer || j.address, await routeMiles(base, geo), byJob);
+        addLeg(j.id, j.customer || j.address, "Depot", await routeMiles(geo, base), byJob);
+        cursor = base;
+      } else {
+        addLeg(j.id, cursor === base ? "Depot" : "Previous job", j.customer || j.address, await routeMiles(cursor, geo), byJob);
+        cursor = geo;
+      }
+      lastStop = j;
+    }
+    if (cursor !== base && lastStop) {
+      addLeg(lastStop.id, "Last job", "Depot", await routeMiles(cursor, base), byJob);
+    }
+    // Now swap in the manual overrides, adjusting the day total by the same amount.
+    for (const j of stops) {
+      if (j.mileageOverride == null) continue;
+      total -= (byJob[j.id] || 0);
+      byJob[j.id] = j.mileageOverride;
+      total += j.mileageOverride;
+    }
+    const rounded = {};
+    for (const id of Object.keys(byJob)) rounded[id] = Math.round(byJob[id]*10)/10;
+    return { base, legs, byJob: rounded, total: Math.round(total*10)/10, errors };
+  }
+  async function recalcDayMileage(dateStr, laneId) {
+    const res = await computeLaneDay(dateStr, laneId);
+    for (const id of Object.keys(res.byJob)) {
+      const j = state.jobs.find(x => x.id === id);
+      if (!j) continue;
+      const miles = res.byJob[id];
+      const newErr = res.errors.find(e => e.indexOf(j.address) !== -1) || null;
+      // Skip the write only when nothing has actually changed. Comparing the
+      // mileage alone used to mean a job that had just lost its postcode kept
+      // its old figure and never recorded the problem, so the office was never
+      // told and the mileage claim still used a number we had not worked out.
+      if (Math.abs((j.mileage || 0) - miles) < 0.05 && (j.distanceError || null) === newErr) continue;
+      j.mileage = miles;
+      let row = { mileage_miles: miles };
+      // Say where the number actually came from. "osrm" when we drove it, "manual"
+      // when somebody typed it, "not worked out" when the address had no postcode
+      // and nobody has typed it yet. Claiming a routed figure for a job we never
+      // routed would put a wrong number on a mileage claim.
+      if (capCol("distance_source")) {
+        row.distance_source = (j.mileageOverride != null) ? "manual"
+          : (newErr ? "not worked out" : "osrm");
+      }
+      if (capCol("distance_error")) row.distance_error = newErr;
+      const { error } = await sb.from("jobs").update(capCol("distance_source") ? stripUnsupported(row) : row).eq("id", id);
+      if (error) console.warn("Mileage save failed for", id, error.message);
+    }
+    return res;
+  }
+  async function recalcAllLanesDay(dateStr) {
+    const lanes = [...new Set(state.jobs.filter(j => j.date === dateStr).map(j => j.lane))];
+    for (const laneId of lanes) {
+      if (isWorkshopLane(laneId)) continue; // workshop jobs sit at the depot — no driving
+      await recalcDayMileage(dateStr, laneId);
+    }
+  }
+  async function recalcVisibleMonth() {
+    const dates = [...new Set(state.jobs
+      .filter(j => j.date && j.date.slice(0,7) === fmtISODate(cursorDate).slice(0,7))
+      .map(j => j.date))].sort();
+    for (const d of dates) await recalcAllLanesDay(d);
+    await loadJobs();
+    render();
+  }
+
   let mileageReqToken = 0;
+  function draftJobFromForm() {
+    const id = document.getElementById("jobId").value || "__draft__";
+    return {
+      id,
+      date: document.getElementById("f_date").value,
+      time: document.getElementById("f_time").value,
+      customer: document.getElementById("f_customer").value.trim(),
+      address: document.getElementById("f_address").value.trim(),
+      lane: document.getElementById("f_lane").value,
+      mileageMode: document.getElementById("f_mileageMode").value,
+      mileageOverride: document.getElementById("f_mileageOverride").value ? Number(document.getElementById("f_mileageOverride").value) : null
+    };
+  }
+  function setMileageInfo(text) { document.getElementById("mileageInfo").textContent = text || ""; }
   async function updateMileage() {
     const infoEl = document.getElementById("mileageInfo");
     const hiddenEl = document.getElementById("f_mileage");
@@ -664,26 +1085,34 @@
     const myToken = ++mileageReqToken;
     if (!postcode) {
       hiddenEl.value = "";
-      infoEl.textContent = "";
+      setMileageInfo("");
       suggestState.siteCoords = null;
       renderSuggestPanel("");
       return;
     }
-    infoEl.textContent = "Calculating mileage from HQ…";
-    const [hq, site] = await Promise.all([getHQCoords(), geocodePostcode(postcode)]);
-    if (myToken !== mileageReqToken) return; // a newer request superseded this one
-    if (!site) { infoEl.textContent = "Couldn't find that postcode."; hiddenEl.value = ""; suggestState.siteCoords = null; renderSuggestPanel(""); return; }
-    suggestState.siteCoords = site;
-    suggestDates();
-    if (!hq) { infoEl.textContent = "Couldn't locate HQ postcode — check HQ_POSTCODE in setup."; hiddenEl.value = ""; return; }
-    const oneWay = await drivingMilesBetween(hq, site);
+    setMileageInfo("Calculating mileage…");
+    geocodePostcode(postcode).then(c => {
+      if (myToken !== mileageReqToken || !c) return;
+      suggestState.siteCoords = c;
+      suggestDates();
+    });
+    const draft = draftJobFromForm();
+    if (!draft.date || !draft.lane || isWorkshopLane(draft.lane)) {
+      hiddenEl.value = "";
+      setMileageInfo("Set a date and a non-workshop lane to work out the drive.");
+      return;
+    }
+    const res = await computeLaneDay(draft.date, draft.lane, draft);
     if (myToken !== mileageReqToken) return;
-    if (oneWay == null) { infoEl.textContent = "Route lookup failed — try again."; hiddenEl.value = ""; return; }
-    const miles = oneWay * 2;
+    const miles = res.byJob[draft.id];
+    if (miles == null) {
+      hiddenEl.value = "";
+      setMileageInfo("Couldn't work out a route for that address.");
+      return;
+    }
     hiddenEl.value = miles.toFixed(1);
-    const net = miles * RETURN_MILEAGE_RATE_PER_MILE;
-    const gross = net * (1 + VAT_RATE);
-    infoEl.textContent = `${miles.toFixed(1)} mi return trip (shortest route) · £${net.toFixed(2)} +VAT (£${gross.toFixed(2)} total)`;
+    const net = money(miles);
+    setMileageInfo(`${miles.toFixed(1)} mi for this job · day total ${res.total.toFixed(1)} mi · £${net.toFixed(2)} +VAT (£${(net*(1+VAT_RATE)).toFixed(2)} total)`);
   }
   function debounce(fn, ms) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; }
   const debouncedUpdateMileage = debounce(updateMileage, 600);
@@ -736,7 +1165,7 @@
 
     const today = startOfDay(new Date());
     const jobsInWindow = state.jobs.filter(j => {
-      if (j.id === excludeId || j.lane === "workshop" || !j.date || !j.address) return false;
+      if (j.id === excludeId || isWorkshopLane(j.lane) || !j.date || !j.address) return false;
       const diffDays = Math.round((new Date(j.date + "T00:00:00") - today) / 86400000);
       return diffDays >= 0 && diffDays <= SUGGEST_SEARCH_DAYS;
     });
@@ -808,17 +1237,39 @@
   function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
   function escapeAttr(s) { return String(s).replace(/"/g, "&quot;"); }
   function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
-  function typeLabel(t) { return t === "install" ? "Install" : t === "workshop" ? "Workshop" : t === "demo" ? "Demo" : "Site visit"; }
+  function typeLabel(t) {
+    return t === "install" ? "Install"
+      : t === "workshop" ? "Workshop"
+      : t === "fetch" ? "Fetch from customer"
+      : t === "deliver" ? "Deliver to customer"
+      : t === "demo" ? "Demo" : "Site visit";
+  }
   function statusLabel(s) { return s === "confirmed" ? "Confirmed" : s === "sent" ? "Sent" : "Planned"; }
   function confirmedTick(j) { return j.status === "confirmed" ? `<span class="confirm-tick" title="Confirmed">✓</span>` : ""; }
+  function linkRoleLabel(r) {
+    return r === "collect" ? "Collection leg"
+      : r === "workshop" ? "Workshop work"
+      : r === "deliver" ? "Return leg" : "";
+  }
+  // The workshop lane is whatever the office called it — id "workshop" in the default
+  // setup, but detect by name too so renaming the lane doesn't break workshop features.
+  function isWorkshopLane(laneId) {
+    if (!laneId) return false;
+    if (laneId === "workshop") return true;
+    const lane = laneById(laneId);
+    return !!(lane && /workshop|bay/i.test(lane.name || ""));
+  }
+  function workshopLane() { return state.lanes.find(l => isWorkshopLane(l.id)) || null; }
 
   // ---------- App state ----------
   let sb = null;                  // supabase client
-  let session = null;             // { id, name, laneId, isAdmin }
+  let session = null;             // { id, name, laneId, isAdmin, isViewer, email }
   let state = {
     lanes: FALLBACK_LANES.slice(),
     jobs: [],
     jobRequests: [],
+    bays: [],
+    techs: [],
     workDayStart: localStorage.getItem("fd.workDayStart") || "08:00",
     workDayEnd: localStorage.getItem("fd.workDayEnd") || "17:00",
     workDayMins: 540,
@@ -841,6 +1292,8 @@
 
   // ---------- Supabase mapping ----------
   function dbJobToApp(r) {
+    let installDetails = r.install_details;
+    if (typeof installDetails === "string") { try { installDetails = JSON.parse(installDetails); } catch (e) { installDetails = {}; } }
     return {
       id: r.id, jobNumber: r.job_number || "", date: r.date, time: r.start_time ? r.start_time.slice(0,5) : "",
       duration: r.duration_mins || 0, travel: r.travel_mins || 0, lane: r.lane_id, apprentice: !!r.apprentice,
@@ -848,17 +1301,40 @@
       make: r.make || "", model: r.model || "", serial: r.serial_number || "", warranty: !!r.warranty, attended: !!r.attended,
       travelActualSecs: r.travel_actual_secs || 0, travelRunningSince: r.travel_running_since || null,
       warrantyActualSecs: r.warranty_actual_secs || 0, warrantyRunningSince: r.warranty_running_since || null,
-      status: r.status || "planned", outlookStatus: r.outlook_status || "not_connected", outlookThreadId: r.outlook_thread_id || null
+      status: r.status || "planned", outlookStatus: r.outlook_status || "not_connected", outlookThreadId: r.outlook_thread_id || null,
+      installDetails: installDetails && typeof installDetails === "object" ? installDetails : {},
+      workshopBay: r.workshop_bay || null,
+      linkedJobId: r.linked_job_id || null,
+      linkRole: r.link_role || null,
+      mileageMode: r.mileage_mode || "chain",
+      mileageOverride: r.mileage_override ?? null,
+      distanceSource: r.distance_source || null,
+      distanceError: r.distance_error || null,
+      followUpOn: r.follow_up_on || null,
+      handoverSigned: !!r.handover_signed
     };
   }
   function appJobToDb(j) {
-    return {
+    const row = {
       job_number: j.jobNumber || null, date: j.date, start_time: j.time || null,
       duration_mins: j.duration || 0, travel_mins: j.travel || 0, lane_id: j.lane, apprentice: !!j.apprentice,
       type: j.type, customer: j.customer || null, customer_email: j.customerEmail || null, address: j.address || null, mileage_miles: j.mileage ?? null, notes: j.notes || null,
       make: j.make || null, model: j.model || null, serial_number: j.serial || null, warranty: !!j.warranty, attended: !!j.attended,
       status: j.status || "planned"
     };
+    const extras = {
+      install_details: (j.installDetails && Object.keys(j.installDetails).length) ? j.installDetails : null,
+      workshop_bay: j.workshopBay || null,
+      linked_job_id: j.linkedJobId || null,
+      link_role: j.linkRole || null,
+      mileage_mode: j.mileageMode || "chain",
+      mileage_override: j.mileageOverride ?? null,
+      distance_source: j.distanceSource || null,
+      distance_error: j.distanceError || null,
+      follow_up_on: j.followUpOn || null,
+      handover_signed: !!j.handoverSigned
+    };
+    return Object.assign(row, capCol("install_details") ? stripUnsupported(extras) : {});
   }
   function formatElapsed(totalSecs) {
     totalSecs = Math.max(0, Math.floor(totalSecs||0));
@@ -908,10 +1384,47 @@
   });
 
   // ---------- Access gate ----------
-  async function checkAccess(code) {
-    const { data, error } = await sb.from("techs").select("*").eq("access_code", code).maybeSingle();
+  // A viewer sees the whole diary and can ask for work, but must never be able
+  // to book it. Nobody signs in with a shared code any more: they get a magic
+  // link by email, and the email is matched to a techs row. The role rides on
+  // the access_code column, which is kept only as the role marker now - a
+  // viewer's code still starts V-. Nothing about a job needs a lane, and a
+  // viewer has none, so they can never be booked to by accident.
+  // The database enforces the same rule (see supabase-auth.sql) - this copy is
+  // for the interface, not for security.
+  const VIEWER_CODE_PREFIX = "V-";
+  // Where the magic link sends people back to. Supabase only allows addresses
+  // you have listed, so this has to be the real web address of the app, not a
+  // file on someone's laptop.
+  const SIGN_IN_RETURN_TO = (location.protocol === "file:")
+    ? null
+    : location.origin + location.pathname;
+  function isViewerCode(code) { return new RegExp("^" + VIEWER_CODE_PREFIX, "i").test(String(code || "")); }
+  // The person behind a verified email address. Their email is the link between
+  // Supabase's sign-in and this table, so a person cannot claim someone else's
+  // lane or role by editing the page.
+  async function personForEmail(email) {
+    const who = String(email || "").trim().toLowerCase();
+    if (!who) return null;
+    const { data, error } = await sb.from("techs").select("*").eq("email", who).maybeSingle();
     if (error || !data) return null;
-    return { id: data.id, name: data.name, laneId: data.lane_id, isAdmin: !!data.is_admin };
+    return {
+      id: data.id, name: data.name, laneId: data.lane_id,
+      isAdmin: !!data.is_admin,
+      isViewer: !data.is_admin && isViewerCode(data.access_code),
+      email: who
+    };
+  }
+  async function signIn(email) {
+    const opts = SIGN_IN_RETURN_TO ? { emailRedirectTo: SIGN_IN_RETURN_TO } : {};
+    const sent = await sb.auth.signInWithOtp({ email: String(email || "").trim(), options: opts });
+    if (sent.error) throw sent.error;
+    return sent;
+  }
+  async function signOut() {
+    try { await sb.auth.signOut(); } catch (e) { /* the local session is cleared anyway */ }
+    session = null;
+    location.reload();
   }
 
   async function boot() {
@@ -925,50 +1438,110 @@
     }
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const params = new URLSearchParams(location.search);
-    const urlCode = params.get("code");
-    if (urlCode) {
-      const found = await checkAccess(urlCode);
-      if (found) { session = found; await afterLogin(); return; }
+    // A magic link lands back here with a token in the address bar. Supabase
+    // takes it out of the URL itself, so the link cannot be reused or copied
+    // out of a bookmark afterwards.
+    sb.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") enterApp();
+    });
+
+    if (SIGN_IN_RETURN_TO) {
+      // A shared link should not leave a token sitting in the address bar.
+      if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+    } else {
+      showLoginForm("Sign-in needs the app on a web address, not opened from a file. Ask the office for the link.", true);
     }
-    showLoginForm(urlCode ? "That code wasn't recognised — try again." : "");
   }
 
-  function showLoginForm(errorMsg) {
+  // Turn a Supabase session into a person on the team, or show why not.
+  let entering = false;
+  async function enterApp() {
+    if (entering) return;
+    entering = true;
+    try {
+      // Whoever was in memory goes before anything is checked. If the address
+      // in the token is no longer on the team, the last person must not still
+      // be sitting in the app.
+      session = null;
+      const { data, error } = await sb.auth.getSession();
+      if (error || !data || !data.session) { showLoginForm(""); return; }
+      const who = await personForEmail(data.session.user.email);
+      if (!who) {
+        // Check the unfinished-setup case before blaming the person.
+        await loadTechs();
+        if (emailColumnMissing) {
+          showLoginForm("Sign-in is half-built: the techs table has no email column yet. In Supabase, SQL editor, run supabase-auth.sql from the project folder. Nothing is lost — the diary is exactly as it was.", true);
+          return;
+        }
+        showLoginForm(`You're signed in as ${data.session.user.email}, but that address is not on the team list yet. Ask the office to add it in Setup, or to set it on this login.`, false, true);
+        return;
+      }
+      session = who;
+      await afterLogin();
+    } finally {
+      entering = false;
+    }
+  }
+
+  function showLoginForm(errorMsg, fatal, keepEmail) {
     const gate = document.getElementById("loginGate");
+    const sent = gate.querySelector(".link-sent");
+    if (sent) sent.remove();
+    gate.classList.add("open");
     gate.innerHTML = `
-      <div class="modal" style="max-width:360px;">
+      <div class="modal" style="max-width:380px;">
         <h2>Field Diary</h2>
+        <p style="font-size:12.5px;color:var(--ink-soft);margin:-4px 0 14px;">Type your work email and we'll send you a link to sign in. No password to remember.</p>
         <div class="field">
-          <label for="loginCode">Access code</label>
-          <input type="text" id="loginCode" placeholder="Enter your code" autocomplete="off">
+          <label for="loginEmail">Work email</label>
+          <input type="email" id="loginEmail" placeholder="you@yourbusiness.co.uk" autocomplete="email"
+                 value="${keepEmail && errorMsg.includes("@") ? escapeHtml(errorMsg.match(/[\w.+-]+@[\w.-]+/)[0]) : ""}">
         </div>
         <div id="loginError" style="color:var(--danger); font-size:12px; margin-bottom:10px; ${errorMsg?"":"display:none;"}">${escapeHtml(errorMsg||"")}</div>
-        <button class="primary" id="loginBtn" style="width:100%;">Continue</button>
+        <button class="primary" id="loginBtn" style="width:100%;" ${fatal?"disabled":""}>${fatal?"Sign-in is not available yet":"Email me a sign-in link"}</button>
+        <p class="link-sent" style="display:none; font-size:12.5px; color:var(--green); margin:12px 0 0;">
+          Check your inbox. The link signs you straight in, and it stops working once you've used it.
+        </p>
       </div>`;
+    if (fatal) return;
     const submit = async () => {
-      const code = document.getElementById("loginCode").value.trim();
-      if (!code) return;
-      const found = await checkAccess(code);
-      if (found) {
-        session = found;
-        history.replaceState(null, "", location.pathname + "?code=" + encodeURIComponent(code));
-        await afterLogin();
-      } else {
-        showLoginForm("That code wasn't recognised — try again.");
+      const email = document.getElementById("loginEmail").value.trim();
+      if (!email) return;
+      const btn = document.getElementById("loginBtn");
+      const box = document.getElementById("loginError");
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+      try {
+        await signIn(email);
+        gate.querySelector(".link-sent").style.display = "";
+        btn.style.display = "none";
+        box.style.display = "none";
+      } catch (e) {
+        // Supabase says "signups not allowed" for a stranger's address so it
+        // cannot be used to find out who is on the team.
+        const msg = /signups not allowed/i.test(e.message || "")
+          ? "That address isn't on the team list. Ask the office to add it in Setup."
+          : (/rate|seconds/i.test(e.message || "") ? "Too many attempts — wait a minute and try again." : (e.message || "Could not send the link."));
+        box.textContent = msg;
+        box.style.display = "";
+        btn.disabled = false;
+        btn.textContent = "Email me a sign-in link";
       }
     };
     document.getElementById("loginBtn").addEventListener("click", submit);
-    document.getElementById("loginCode").addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+    document.getElementById("loginEmail").addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
   }
 
   async function afterLogin() {
+    const viewer = !!session.isViewer;
     document.getElementById("loginGate").classList.remove("open");
-    document.getElementById("whoami").textContent = `${session.name}${session.isAdmin ? " · Office" : ""}`;
+    document.getElementById("whoami").textContent =
+      `${session.name}${session.isAdmin ? " · Office" : viewer ? " · Viewer" : ""}`;
     document.getElementById("signOutBtn").style.display = "inline-block";
 
     // Non-admins default to seeing only their own lane; everyone can toggle to see the whole team.
-    document.getElementById("teamToggleWrap").style.display = session.isAdmin ? "none" : "flex";
+    // A viewer has no lane, so they see the whole board from the start and the toggle is pointless.
+    document.getElementById("teamToggleWrap").style.display = (session.isAdmin || viewer) ? "none" : "flex";
     if (!session.isAdmin && session.laneId) {
       state.activeLanes = [session.laneId];
     }
@@ -979,10 +1552,15 @@
     document.getElementById("newJobBtn").style.display = session.isAdmin ? "" : "none";
     document.getElementById("requestJobBtn").style.display = session.isAdmin ? "none" : "";
     document.getElementById("requestsTabBtn").style.display = session.isAdmin ? "" : "none";
+    document.getElementById("setupTabBtn").style.display = session.isAdmin ? "" : "none";
 
+    await probeCapabilities();
     await loadLanes();
     await loadJobs();
     await loadJobRequests();
+    await loadBays();
+    await loadTechs();
+    await rollForwardWorkshopJobs();
     subscribeRealtime();
     render();
   }
@@ -1000,11 +1578,68 @@
     const { data, error } = await sb.from("job_requests").select("*").order("created_at", { ascending: false });
     if (!error && data) state.jobRequests = data;
   }
+  async function loadBays() {
+    const { data, error } = await sb.from("bays").select("*").order("sort_order");
+    if (!error && data) state.bays = data;
+  }
+  // Until supabase-auth.sql has been run there is no email column, and every
+  // query that mentions one comes back with a PostgREST error. That is a
+  // "you haven't finished the setup" state, not a "not on the team" one, and
+  // saying the wrong thing here would send the office looking in the wrong place.
+  let emailColumnMissing = false;
+  async function loadTechs() {
+    const { data, error } = await sb.from("techs").select("id,lane_id,name,access_code,is_admin,email").order("name");
+    if (error) {
+      if (/column .*email.* does not exist|schema\.cache/i.test(error.message || "") || error.code === "42703") {
+        emailColumnMissing = true;
+      }
+      return;
+    }
+    emailColumnMissing = false;
+    state.techs = data;
+  }
+  let toastTimer = null;
+  function notify(msg, ms) {
+    let el = document.getElementById("toast");
+    if (!el) { el = document.createElement("div"); el.id = "toast"; document.body.appendChild(el); }
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), ms || 6000);
+  }
+
+  // A workshop job shouldn't quietly go stale: if its day has passed and nobody
+  // has ticked "Attended", pull it forward to today so it stays on the radar
+  // instead of sinking into the follow-up pile. Office only — a technician
+  // logging in must never rewrite the schedule.
+  async function rollForwardWorkshopJobs() {
+    if (!session.isAdmin) return 0;
+    const todayStr = fmtISODate(startOfDay(new Date()));
+    const stale = state.jobs.filter(j =>
+      j.date && j.date < todayStr && !j.attended && (j.type === "workshop" || isWorkshopLane(j.lane)));
+    if (!stale.length) return 0;
+    let moved = 0;
+    for (const j of stale) {
+      const { error } = await sb.from("jobs").update({ date: todayStr }).eq("id", j.id);
+      if (error) console.warn("Couldn't roll a workshop job forward", j.id, error.message);
+      else moved++;
+    }
+    if (moved) {
+      const clashes = stale.filter(j => j.workshopBay
+        && state.jobs.some(o => o.id !== j.id && o.date === todayStr && o.workshopBay === j.workshopBay)).length;
+      await loadJobs();
+      notify(`Moved ${moved} unfinished workshop job${moved === 1 ? "" : "s"} to today so they don't go stale.`
+        + (clashes ? ` ${clashes} now share a bay — check the Workshop view.` : "")
+        + " Tick Attended when the work is done.");
+    }
+    return moved;
+  }
   function subscribeRealtime() {
     sb.channel("jobs-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "jobs" }, async () => { await loadJobs(); render(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "lanes" }, async () => { await loadLanes(); render(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "job_requests" }, async () => { await loadJobRequests(); render(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "bays" }, async () => { await loadBays(); render(); })
       .subscribe();
   }
 
@@ -1013,7 +1648,7 @@
     return jobsOn(dateStr).filter(j => j.lane === laneId).reduce((sum, j) => sum + (Number(j.duration)||0) + (Number(j.travel)||0), 0);
   }
   function dayIsOverCapacity(dateStr) {
-    return state.activeLanes.some(laneId => laneId !== "workshop" && laneMinutesOn(dateStr, laneId) > state.workDayMins);
+    return state.activeLanes.some(laneId => !isWorkshopLane(laneId) && laneMinutesOn(dateStr, laneId) > state.workDayMins);
   }
   function laneFinishTime(dateStr, laneId) {
     const jobs = jobsOn(dateStr).filter(j => j.lane === laneId);
@@ -1027,7 +1662,7 @@
     return latest;
   }
   function laneRunsLate(dateStr, laneId) {
-    if (laneId === "workshop") return false;
+    if (isWorkshopLane(laneId)) return false;
     const finish = laneFinishTime(dateStr, laneId);
     return finish !== null && finish > timeToMins(state.workDayEnd);
   }
@@ -1084,6 +1719,11 @@
   }
 
   // ---------- Top bar ----------
+  function setView(v) {
+    if (!v || v === currentView) return;
+    currentView = v;
+    render();
+  }
   function renderTopbar() {
     document.querySelectorAll(".view-switch button").forEach(b => b.classList.toggle("active", b.dataset.view === currentView));
     const label = document.getElementById("periodLabel");
@@ -1093,7 +1733,10 @@
     else if (currentView === "week") {
       const ws = startOfWeek(cursorDate), we = addDays(ws, 6);
       label.textContent = `${ws.toLocaleDateString(undefined,{day:"numeric",month:"short"})} – ${we.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})}`;
-    } else if (isFollowUp) label.textContent = "Past-date jobs";
+    } else if (currentView === "bays") label.textContent = "Workshop bays";
+    else if (currentView === "mileage") label.textContent = "Mileage claims";
+    else if (isFollowUp) label.textContent = "Past-date jobs";
+    else if (currentView === "setup") label.textContent = "Setup";
     else if (isRequests) label.textContent = "Requests from the team";
     else label.textContent = cursorDate.toLocaleDateString(undefined, { weekday:"long", day:"numeric", month:"long", year:"numeric" });
     ["prevBtn","nextBtn","todayBtn"].forEach(id => document.getElementById(id).disabled = isFollowUp || isRequests);
@@ -1112,18 +1755,32 @@
   function renderMonth() {
     const el = document.getElementById("content");
     const first = startOfMonth(cursorDate);
-    const gridStart = startOfWeek(first);
+    const today = startOfDay(new Date());
     const dows = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-    let html = `<div class="month-grid">`;
+    const todayStr = fmtISODate(today);
+    // Six weeks from the Monday on or before the 1st. That always reaches past
+    // the end of the month, so the next month's days are in the grid.
+    const gridStart = startOfWeek(first);
+    // In the month we are living in, start on the Monday of this week and keep
+    // six weeks, so the grid opens on today rather than on a month of history
+    // and always shows six weeks of what is coming - next month included - with
+    // nothing to scroll inside.
+    const thisMonth = first.getFullYear() === today.getFullYear() && first.getMonth() === today.getMonth();
+    const from = thisMonth ? startOfWeek(today) : gridStart;
+    const gridEnd = addDays(from, 41);
+    const days = [];
+    for (let d = from; d <= gridEnd; d = addDays(d, 1)) days.push(d);
+    let html = `<div class="month-box" id="monthBox"><div class="month-head">`;
     dows.forEach(d => html += `<div class="month-dow">${d}</div>`);
-    for (let i=0; i<42; i++) {
-      const d = addDays(gridStart, i);
+    html += `</div><div class="month-grid">`;
+    days.forEach(d => {
       const dateStr = fmtISODate(d);
       const inMonth = d.getMonth() === first.getMonth();
-      const isToday = fmtISODate(d) === fmtISODate(new Date());
-      const dayJobs = jobsOn(dateStr).filter(j => state.activeLanes.includes(j.lane)).sort((a,b) => (a.time||"").localeCompare(b.time||""));
-      const over = dayIsOverCapacity(dateStr) || state.activeLanes.some(laneId => laneRunsLate(dateStr, laneId));
-      html += `<div class="month-cell ${inMonth?"":"out"} ${isToday?"today":""}" data-date="${dateStr}">
+      const isToday = dateStr === todayStr;
+      const past = isPastDate(dateStr);
+      const dayJobs = diaryJobsOn(dateStr).filter(j => state.activeLanes.includes(j.lane)).sort((a,b) => (a.time||"").localeCompare(b.time||""));
+      const over = !past && (dayIsOverCapacity(dateStr) || state.activeLanes.some(laneId => laneRunsLate(dateStr, laneId)));
+      html += `<div class="month-cell ${inMonth?"":"out"} ${isToday?"today":""} ${past?"past":""}" data-date="${dateStr}">
         <div class="month-date ${over?"over":""}"><span>${d.getDate()}</span><span class="cap-dot" title="Over capacity or a tech running past finish time"></span></div>`;
       dayJobs.slice(0,3).forEach(j => {
         const lane = laneById(j.lane) || {color:"#999"};
@@ -1132,11 +1789,11 @@
       });
       if (dayJobs.length > 3) html += `<div class="chip-more">+${dayJobs.length-3} more</div>`;
       html += `</div>`;
-    }
-    html += `</div>`;
+    });
+    html += `</div></div>`;
     el.innerHTML = html;
     el.querySelectorAll(".chip[data-job]").forEach(c => c.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(c.dataset.job); }));
-    el.querySelectorAll(".month-cell").forEach(cell => cell.addEventListener("click", () => { cursorDate = new Date(cell.dataset.date + "T00:00:00"); currentView = "day"; render(); }));
+    el.querySelectorAll(".month-cell").forEach(cell => cell.addEventListener("click", () => { cursorDate = new Date(cell.dataset.date + "T00:00:00"); setView("day"); }));
   }
 
   // ---------- Week view ----------
@@ -1158,11 +1815,12 @@
       body += `<div class="swim-row" style="grid-template-columns: ${GRID_COLS};"><div class="swim-row-label"><span class="swatch" style="background:${lane.color}"></span>${escapeHtml(lane.name)}</div>`;
       days.forEach(d => {
         const dateStr = fmtISODate(d);
-        const mins = laneMinutesOn(dateStr, lane.id);
-        const pct = lane.id === "workshop" ? null : Math.min(100, Math.round((mins/state.workDayMins)*100));
-        const late = laneRunsLate(dateStr, lane.id);
-        const jobs = jobsOn(dateStr).filter(j => j.lane === lane.id).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
-        body += `<div class="swim-cell" data-date="${dateStr}" data-lane="${lane.id}">`;
+        const past = isPastDate(dateStr);
+        const mins = past ? 0 : laneMinutesOn(dateStr, lane.id);
+        const pct = isWorkshopLane(lane.id) ? null : Math.min(100, Math.round((mins/state.workDayMins)*100));
+        const late = !past && laneRunsLate(dateStr, lane.id);
+        const jobs = diaryJobsOn(dateStr).filter(j => j.lane === lane.id).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+        body += `<div class="swim-cell ${past?"past":""}" data-date="${dateStr}" data-lane="${lane.id}">`;
         jobs.forEach(j => {
           const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
           body += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
@@ -1178,7 +1836,10 @@
       body += `</div>`;
     });
     body += `</div></div></div>`;
-    el.innerHTML = head + body;
+    const pastCount = state.jobs.filter(j => isPastDate(j.date)).length;
+    const notice = days.some(d => isPastDate(fmtISODate(d)))
+      ? `<div class="past-notice">This week has started${pastCount ? ` — ${pastCount} job${pastCount===1?"":"s"} from it now live in Follow-up` : ""}.</div>` : "";
+    el.innerHTML = notice + head + body;
     el.querySelectorAll(".job-block").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
     if (session.isAdmin) el.querySelectorAll(".swim-cell").forEach(c => c.addEventListener("click", () => openJobModal(null, c.dataset.date, c.dataset.lane)));
   }
@@ -1188,20 +1849,36 @@
     const el = document.getElementById("content");
     const dateStr = fmtISODate(cursorDate);
     const lanes = state.lanes.filter(l => state.activeLanes.includes(l.id));
+    const past = isPastDate(dateStr);
 
-    let html = `<div class="day-lanes">`;
+    let html = "";
+    if (past) {
+      const onDay = pastJobs().filter(j => j.date === dateStr);
+      html += `<div class="past-notice">${new Date(cursorDate).toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"})} has passed. `
+        + (onDay.length
+            ? `${onDay.length} job${onDay.length===1?"":"s"} from this day ${onDay.length===1?"is":"are"} now in <a href="#" data-goto-followup>Follow-up</a>.`
+            : `Its jobs are in <a href="#" data-goto-followup>Follow-up</a>.`);
+      html += `</div>`;
+    }
+    html += `<div class="day-lanes">`;
     lanes.forEach(lane => {
-      const jobs = jobsOn(dateStr).filter(j => j.lane === lane.id).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
-      const mins = laneMinutesOn(dateStr, lane.id);
-      const pct = lane.id === "workshop" ? null : Math.min(999, Math.round((mins/state.workDayMins)*100));
+      const jobs = diaryJobsOn(dateStr).filter(j => j.lane === lane.id).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+      const mins = past ? 0 : laneMinutesOn(dateStr, lane.id);
+      // A past day carries no plan, so a "0% of day" bar would just be noise.
+      const capText = past ? "—"
+        : (isWorkshopLane(lane.id) ? `${jobs.length} job${jobs.length===1?"":"s"}`
+                                  : `${Math.min(999, Math.round((mins/state.workDayMins)*100))}% of day`);
       html += `<div class="day-lane">
         <div class="day-lane-head">
           <span class="swatch" style="background:${lane.color}"></span>
           <strong style="flex:1;">${escapeHtml(lane.name)}</strong>
-          ${pct!==null ? `<span class="cap-pct">${pct}% of day</span>` : `<span class="cap-pct">${jobs.length} job${jobs.length===1?"":"s"}</span>`}
+          <span class="cap-pct">${capText}</span>
         </div>
         <div class="day-lane-body" data-date="${dateStr}" data-lane="${lane.id}">`;
       if (!jobs.length) html += `<div class="empty-hint">No jobs${session.isAdmin?" — click to add one":""}</div>`;
+      // A day that has passed shows no mileage: its jobs now live in Follow-up.
+      const laneMiles = past ? 0 : milesForLaneDay(dateStr, lane.id);
+      if (laneMiles) html += `<div class="day-total-line" style="border-top:none;padding:0 0 4px;">${laneMiles.toFixed(1)} mi driven · £${money(laneMiles).toFixed(2)}</div>`;
       jobs.forEach(j => {
         const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
         html += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
@@ -1209,7 +1886,13 @@
           <div class="job-cust">${num}${escapeHtml(j.customer||"Untitled job")}${confirmedTick(j)}${apprenticeTag(j)}${warrantyTag(j)}</div>
           ${(j.make||j.model)?`<div class="job-meta">${escapeHtml([j.make,j.model].filter(Boolean).join(" "))}${j.serial?" · S/N "+escapeHtml(j.serial):""}</div>`:""}
           <div class="job-meta">${typeLabel(j.type)}${j.address?` · ${escapeHtml(j.address)} · <a href="${mapsUrl(j.address)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--green); font-weight:600; text-decoration:none;">Maps ↗</a>`:""}</div>
-          <span class="status-pill status-${j.status||"planned"}" style="margin-top:4px;">${statusLabel(j.status)}</span>
+          <div class="job-meta" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:4px;">
+            <span class="status-pill status-${j.status||"planned"}">${statusLabel(j.status)}</span>
+            ${!isWorkshopLane(lane.id) && j.mileage ? `<span class="tag-miles">${Number(j.mileage).toFixed(1)} mi</span>` : ""}
+            ${j.workshopBay ? `<span class="tag-bay">${escapeHtml(j.workshopBay)}</span>` : ""}
+            ${j.linkRole ? `<span class="tag-chain">${escapeHtml(linkRoleLabel(j.linkRole))}</span>` : ""}
+            ${j.followUpOn ? `<span class="tag-chain">Follow-up ${escapeHtml(fmtUKDate(j.followUpOn))}</span>` : ""}
+          </div>
         </div>`;
       });
       if (laneRunsLate(dateStr, lane.id)) html += `<div class="job-meta" style="color:var(--danger); font-weight:600;">Back after ${minsToClock(timeToMins(state.workDayEnd))} at this rate</div>`;
@@ -1218,12 +1901,17 @@
     html += `</div>`;
     el.innerHTML = html;
     el.querySelectorAll(".job-block").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
+    el.querySelectorAll("[data-goto-followup]").forEach(a => a.addEventListener("click", (e) => { e.preventDefault(); setView("followup"); }));
     if (session.isAdmin) el.querySelectorAll(".day-lane-body").forEach(c => c.addEventListener("click", (e) => { if (e.target.closest(".job-block")) return; openJobModal(null, c.dataset.date, c.dataset.lane); }));
   }
 
   // ---------- Follow-up (past-date jobs) ----------
   function isPastDate(dateStr) { return !!dateStr && dateStr < fmtISODate(startOfDay(new Date())); }
   function pastJobs() { return state.jobs.filter(j => isPastDate(j.date)); }
+  // The diary is a forward-looking plan: once a day has passed its jobs belong to
+  // the Follow-up queues (to invoice / needs rebooking), so they're left out of
+  // month, week and day to stop them cluttering the plan.
+  function diaryJobsOn(dateStr) { return isPastDate(dateStr) ? [] : jobsOn(dateStr); }
   function invoiceQueue() { return pastJobs().filter(j => j.attended); }
   function rebookQueue() { return pastJobs().filter(j => !j.attended); }
   function jobsNeedingChase() {
@@ -1259,6 +1947,718 @@
     </div>`;
     el.innerHTML = html;
     el.querySelectorAll(".job-block").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
+  }
+
+  // ---------- Workshop bays ----------
+  function bayNames() {
+    const names = state.bays.map(b => b.name);
+    state.jobs.forEach(j => { if (j.workshopBay && names.indexOf(j.workshopBay) === -1) names.push(j.workshopBay); });
+    return names;
+  }
+  function renderBays() {
+    const el = document.getElementById("content");
+    const ws = startOfWeek(cursorDate);
+    const days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
+    const names = bayNames();
+    const wl = workshopLane();
+    const col = (wl && wl.color) || "#6B5B8E";
+    const dateStrs = days.map(d => fmtISODate(d));
+    const totals = name => {
+      const js = state.jobs.filter(j => j.workshopBay === name && j.attended);
+      return js.reduce((sum, j) => sum + (Number(j.duration) || 0), 0);
+    };
+
+    let html = `<div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">`;
+    html += `<div style="flex:1; font-size:12px; color:var(--ink-soft);">Week of ${fmtUKDate(fmtISODate(ws))} · bays are shared by whoever is booked into them.</div>`;
+    if (session.isAdmin) {
+      html += `<button class="ghost" id="recalcMileageBtn" style="font-size:12px;">Recalculate mileage</button>`;
+      html += `<button class="primary" id="newBayBtn" style="font-size:12px;">+ New bay</button>`;
+    }
+    html += `</div>`;
+
+    if (!names.length) {
+      html += `<div class="data-wrap"><div style="padding:26px; text-align:center; color:var(--ink-soft); font-size:13px;">No bays set up yet.${session.isAdmin ? " Use “New bay” to add one, or run supabase-migration.sql to seed Bay 1–3." : " Ask the office to set some up."}</div></div>`;
+    } else {
+      html += `<div class="data-wrap"><table class="data-table"><thead><tr><th>Bay</th>`;
+      days.forEach(d => {
+        const iso = fmtISODate(d);
+        html += `<th class="bay-cell ${iso === fmtISODate(new Date()) ? "today-col" : ""}">${d.toLocaleDateString(undefined,{weekday:"short"})} ${d.getDate()}</th>`;
+      });
+      html += `<th class="num">Done</th><th></th></tr></thead><tbody>`;
+      names.forEach(name => {
+        html += `<tr><td><b>${escapeHtml(name)}</b></td>`;
+        dateStrs.forEach(iso => {
+          const js = jobsOn(iso).filter(j => j.workshopBay === name).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+          html += `<td class="bay-cell">`;
+          if (!js.length) html += `<span class="bay-none">—</span>`;
+          js.forEach(j => {
+            const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} ` : "";
+            html += `<div class="bay-job" style="border-color:${col};" data-job="${j.id}" title="${escapeAttr(typeLabel(j.type) + (j.customer ? " · " + j.customer : ""))}">
+              <b>${j.time ? escapeHtml(j.time) : "—"}</b> ${num}${escapeHtml(j.customer || typeLabel(j.type))}${confirmedTick(j)}
+            </div>`;
+          });
+          html += `</td>`;
+        });
+        html += `<td class="num">${totals(name) ? escapeHtml(formatDuration(totals(name), state.workDayMins)) : "—"}</td>`;
+        html += `<td>${session.isAdmin ? `<button class="ghost" data-rename-bay="${escapeAttr(name)}" style="font-size:11px; padding:3px 7px;">Rename</button>` : ""}</td></tr>`;
+      });
+      html += `</tbody></table></div>`;
+      html += `<div class="day-total-line">Totals count attended jobs only. Change a job's bay from the job screen.</div>`;
+    }
+    el.innerHTML = html;
+    el.querySelectorAll("[data-job]").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
+    const newBay = el.querySelector("#newBayBtn");
+    if (newBay) newBay.addEventListener("click", addBay);
+    const recalc = el.querySelector("#recalcMileageBtn");
+    if (recalc) recalc.addEventListener("click", async () => {
+      recalc.disabled = true; recalc.textContent = "Working…";
+      await recalcVisibleMonth();
+      recalc.disabled = false; recalc.textContent = "Recalculate mileage";
+    });
+    el.querySelectorAll("[data-rename-bay]").forEach(b => b.addEventListener("click", async () => {
+      const oldName = b.getAttribute("data-rename-bay");
+      const next = (prompt("Rename bay", oldName) || "").trim();
+      if (!next || next === oldName) return;
+      if (state.bays.some(x => x.name === next)) { alert("There's already a bay called “" + next + "”."); return; }
+      const { error } = await sb.from("bays").update({ name: next }).eq("name", oldName);
+      if (error) { alert("Couldn't rename that bay: " + error.message); return; }
+      // jobs.workshop_bay holds the bay NAME, so it has to follow the rename.
+      if (capCol("workshop_bay")) {
+        const moved = await sb.from("jobs").update({ workshop_bay: next }).eq("workshop_bay", oldName);
+        if (moved.error) {
+          await sb.from("bays").update({ name: oldName }).eq("name", next);
+          alert("Couldn't move the jobs across, so the bay was put back: " + moved.error.message);
+          await Promise.all([loadBays(), loadJobs()]);
+          render();
+          return;
+        }
+      }
+      await Promise.all([loadBays(), loadJobs()]);
+      render();
+    }));
+  }
+  async function addBay() {
+    const name = prompt("Name for the new bay (e.g. Bay 4)");
+    if (!name) return;
+    const nextSort = state.bays.reduce((m, b) => Math.max(m, Number(b.sort_order) || 0), 0) + 1;
+    const { error } = await sb.from("bays").insert({ name, sort_order: nextSort });
+    if (error) { alert("Couldn't add that bay: " + error.message); return; }
+    await loadBays();
+    render();
+  }
+
+  // ---------- Mileage ----------
+  function milesForLaneDay(dateStr, laneId) {
+    if (isWorkshopLane(laneId)) return 0;
+    return jobsOn(dateStr).filter(j => j.lane === laneId).reduce((s, j) => s + (Number(j.mileage) || 0), 0);
+  }
+  function milesForDate(dateStr) {
+    return state.jobs.filter(j => j.date === dateStr && !isWorkshopLane(j.lane)).reduce((s, j) => s + (Number(j.mileage) || 0), 0);
+  }
+  function money(miles) { return (Number(miles) || 0) * RETURN_MILEAGE_RATE_PER_MILE; }
+  function renderMileage() {
+    const el = document.getElementById("content");
+    const month = fmtISODate(cursorDate).slice(0,7);
+    const monthDates = [...new Set(state.jobs.filter(j => j.date && j.date.slice(0,7) === month).map(j => j.date))].sort();
+    const lanes = state.lanes.filter(l => state.activeLanes.includes(l.id));
+    const weekDates = monthDates.filter(d => d >= fmtISODate(startOfWeek(cursorDate)) && d <= fmtISODate(addDays(startOfWeek(cursorDate), 6)));
+
+    const issues = state.jobs.filter(j => j.distanceError);
+    let html = "";
+    if (issues.length) {
+      html += `<div class="issue-banner"><span><strong>${issues.length}</strong> job${issues.length === 1 ? "" : "s"} couldn't be routed — most likely no postcode on the address.</span>`
+        + `<button class="ghost" id="reviewIssuesBtn">Show me</button></div>`;
+    }
+    html += `<div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">`;
+    html += `<div style="flex:1; font-size:12px; color:var(--ink-soft);">Shortest real driving route, chained job to job. Rates: £${MILEAGE_RATE_PER_MILE.toFixed(2)}/mi out, half that back.</div>`;
+    if (session.isAdmin) html += `<button class="ghost" id="recalcMileageBtn2" style="font-size:12px;">Recalculate this month</button>`;
+    html += `<button class="primary" id="printClaimsBtn" style="font-size:12px;">Print claim sheet</button>`;
+    html += `</div>`;
+
+    if (!monthDates.length) {
+      html += `<div class="data-wrap"><div style="padding:26px; text-align:center; color:var(--ink-soft); font-size:13px;">No jobs in ${new Date(cursorDate).toLocaleDateString(undefined,{month:"long",year:"numeric"})}.</div></div>`;
+    } else {
+      html += `<div class="data-wrap"><table class="data-table"><thead><tr><th>Technician</th>`;
+      monthDates.forEach(d => {
+        const isWeek = weekDates.includes(d);
+        html += `<th class="num ${isWeek ? "today-col" : ""}">${new Date(d + "T00:00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"})}</th>`;
+      });
+      html += `<th class="num">Month</th><th class="num">Net £</th><th class="num">+VAT £</th></tr></thead><tbody>`;
+      lanes.forEach(lane => {
+        html += `<tr><td><span class="lane-dot" style="background:${lane.color}"></span>${escapeHtml(lane.name)}</td>`;
+        let monthTotal = 0;
+        monthDates.forEach(d => {
+          const mi = milesForLaneDay(d, lane.id);
+          monthTotal += mi;
+          html += `<td class="num">${mi ? mi.toFixed(1) : "<span style='color:var(--ink-soft)'>—</span>"}</td>`;
+        });
+        const net = money(monthTotal);
+        html += `<td class="num"><b>${monthTotal.toFixed(1)}</b></td>`;
+        html += `<td class="num">£${net.toFixed(2)}</td>`;
+        html += `<td class="num">£${(net*(1+VAT_RATE)).toFixed(2)}</td></tr>`;
+      });
+      html += `</tbody><tfoot><tr><td>All technicians</td>`;
+      let grand = 0;
+      monthDates.forEach(d => { const mi = milesForDate(d); grand += mi; html += `<td class="num">${mi ? mi.toFixed(1) : "—"}</td>`; });
+      const grandNet = money(grand);
+      html += `<td class="num">${grand.toFixed(1)}</td><td class="num">£${grandNet.toFixed(2)}</td><td class="num">£${(grandNet*(1+VAT_RATE)).toFixed(2)}</td></tr></tfoot></table></div>`;
+      html += `<div class="day-total-line">Workshop jobs aren't counted — the machine is already at the depot. Each technician's total is the sum of the miles attributed to their jobs.</div>`;
+    }
+    el.innerHTML = html;
+    const rb = el.querySelector("#recalcMileageBtn2");
+    if (rb) rb.addEventListener("click", async () => {
+      rb.disabled = true; rb.textContent = "Working…";
+      await recalcVisibleMonth();
+      rb.disabled = false; rb.textContent = "Recalculate this month";
+    });
+    el.querySelector("#printClaimsBtn").addEventListener("click", printMileageClaims);
+    const rv = el.querySelector("#reviewIssuesBtn");
+    if (rv) rv.addEventListener("click", () => { const j = issues[0]; if (j) openJobModal(j.id); });
+  }
+
+  // ---------- Printing ----------
+  function printDocHtml(title, bodyHtml) {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
+      body{font-family:Inter,Arial,sans-serif;padding:20px;color:#111}
+      h1{font-size:19px;margin:0 0 2px}h2{font-size:11px;color:#666;margin:16px 0 8px;text-transform:uppercase;letter-spacing:.07em}
+      table{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:12px}
+      th{background:#f1f5f9;text-align:left;padding:6px;border:1px solid #ddd;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+      td{padding:6px;border:1px solid #ddd;white-space:pre-wrap;vertical-align:top}
+      td.num{text-align:right;font-variant-numeric:tabular-nums}
+      tr:nth-child(even) td{background:#fafbfc}
+      tfoot td{font-weight:700}
+      .sig{margin-top:26px;font-size:12px;display:flex;gap:36px}.sig div{flex:1;border-top:1px solid #333;padding-top:5px}
+      @media print{@page{size:A4;margin:12mm}}
+    </style></head><body>${bodyHtml}</body></html>`;
+  }
+  function printInto(html, title) {
+    const win = window.open("", "_blank");
+    if (!win) { alert("Your browser blocked the print window — allow pop-ups for this site."); return; }
+    win.document.write(printDocHtml(title, html));
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 350);
+  }
+  function printMileageClaims() {
+    const month = fmtISODate(cursorDate).slice(0,7);
+    const dates = [...new Set(state.jobs.filter(j => j.date && j.date.slice(0,7) === month).map(j => j.date))].sort();
+    const lanes = state.lanes.filter(l => state.activeLanes.includes(l.id));
+    let rows = "";
+    let grand = 0;
+    lanes.forEach(lane => {
+      const perDate = dates.map(d => milesForLaneDay(d, lane.id));
+      const total = perDate.reduce((a,b) => a+b, 0);
+      grand += total;
+      rows += `<tr><td>${escapeHtml(lane.name)}</td>`
+        + perDate.map(m => `<td class="num">${m ? m.toFixed(1) : "—"}</td>`).join("")
+        + `<td class="num"><b>${total.toFixed(1)}</b></td><td class="num">£${money(total).toFixed(2)}</td></tr>`;
+    });
+    const net = money(grand);
+    const html = `<h1>Field Diary — mileage claim</h1>
+      <h2>${new Date(cursorDate).toLocaleDateString(undefined,{month:"long",year:"numeric"})} · ${escapeHtml(HQ_POSTCODE)} depot · £${MILEAGE_RATE_PER_MILE.toFixed(2)}/mi out, £${RETURN_MILEAGE_RATE_PER_MILE.toFixed(2)}/mi back</h2>
+      <table><thead><tr><th>Technician</th>${dates.map(d => `<th class="num">${new Date(d+"T00:00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"})}</th>`).join("")}<th class="num">Miles</th><th class="num">Net</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td><b>Total</b></td>${dates.map(() => "").join("")}<td class="num"><b>${grand.toFixed(1)}</b></td><td class="num"><b>£${net.toFixed(2)}</b></td></tr></tfoot></table>
+      <p style="font-size:12px">Net £${net.toFixed(2)} · VAT £${(net*VAT_RATE).toFixed(2)} · Gross £${(net*(1+VAT_RATE)).toFixed(2)}</p>
+      <div class="sig"><div>Technician signature</div><div>Checked by</div><div>Date</div></div>`;
+    printInto(html, `Mileage claim ${month}`);
+  }
+  function printJobCard(jobId) {
+    const j = state.jobs.find(x => x.id === jobId);
+    if (!j) return;
+    const lane = laneById(j.lane);
+    const d = j.installDetails || {};
+    const rows = [
+      ["Job number", j.jobNumber || "—", "Date", fmtUKDate(j.date)],
+      ["Customer", j.customer || "—", "Booked time", (j.time || "—") + (j.duration ? " · " + formatDuration(j.duration, state.workDayMins) : "")],
+      ["Address", j.address || "—", "Technician", lane ? lane.name : "—"],
+      ["Email", j.customerEmail || "—", "Type", typeLabel(j.type)],
+      ["Machine", [j.make, j.model, j.serial ? "SN " + j.serial : ""].filter(Boolean).join(" ") || "—", "Warranty", j.warranty ? "Yes" : "No"],
+      ["Miles this job", j.mileage != null ? Number(j.mileage).toFixed(1) + " mi · £" + money(j.mileage).toFixed(2) : "—", "Bay", j.workshopBay || "—"],
+      ["Attended", j.attended ? "Yes" : "No", "Handover signed", j.handoverSigned ? "Yes" : "Not yet"]
+    ];
+    let html = `<h1>Job card — ${escapeHtml(j.customer || "No customer")}</h1>
+      <h2>${escapeHtml(fmtUKDate(j.date))} · ${escapeHtml(typeLabel(j.type))}${j.linkRole ? " · " + escapeHtml(linkRoleLabel(j.linkRole)) : ""}</h2>
+      <table><tbody>${rows.map(r => `<tr><th>${escapeHtml(r[0])}</th><td>${escapeHtml(r[1])}</td><th>${escapeHtml(r[2])}</th><td>${escapeHtml(r[3])}</td></tr>`).join("")}</tbody></table>`;
+    const installRows = INSTALL_SPEC.filter(s => d[s[0]] != null && d[s[0]] !== "").map(s => [s[1], String(d[s[0]])]);
+    if (j.followUpOn) installRows.push(["Follow-up date", fmtUKDate(j.followUpOn)]);
+    if (installRows.length) {
+      html += `<h2>Install detail</h2><table><tbody>${installRows.map(r => `<tr><th>${escapeHtml(r[0])}</th><td>${escapeHtml(r[1])}</td></tr>`).join("")}</tbody></table>`;
+    }
+    if (j.notes) html += `<h2>Notes</h2><table><tbody><tr><td>${escapeHtml(j.notes)}</td></tr></tbody></table>`;
+    html += `<div class="sig"><div>Technician signature</div><div>Customer signature</div><div>Date</div></div>`;
+    printInto(html, `Job card ${j.jobNumber || j.id}`);
+  }
+
+  // ---------- Fetch / workshop / deliver chain ----------
+  async function startFetchChain(jobId) {
+    const f = state.jobs.find(j => j.id === jobId);
+    if (!f) return;
+    const wl = workshopLane();
+    if (!wl) { alert("No workshop lane found. Rename a lane to include “workshop”, or give it the id workshop."); return; }
+    const w = {
+      jobNumber: "", date: f.date, time: f.time || "09:00", duration: DEFAULT_DURATION_BY_TYPE.workshop, travel: 0,
+      lane: wl.id, type: "workshop", customer: f.customer, customerEmail: f.customerEmail, address: "",
+      mileage: 0, notes: `Collected in — ${f.notes || "no notes"}`, make: f.make, model: f.model, serial: f.serial,
+      warranty: f.warranty, attended: false, status: "planned", apprentice: false,
+      linkRole: "workshop", linkedJobId: f.id, mileageMode: "chain", installDetails: Object.assign({}, f.installDetails)
+    };
+    const { data, error } = await sb.from("jobs").insert(appJobToDb(w));
+    if (error) { alert("Couldn't book the workshop job: " + error.message); return; }
+    await linkJobs(f.id, (data && data[0] && data[0].id) || null, "collect");
+    await loadJobs();
+    currentView = "day";
+    render();
+  }
+  async function startDeliverChain(jobId) {
+    const f = state.jobs.find(j => j.id === jobId);
+    if (!f) return;
+    const w = f.linkedJobId ? state.jobs.find(j => j.id === f.linkedJobId) : null;
+    const d = {
+      jobNumber: "", date: w ? w.date : f.date, time: w ? w.time : (f.time || "14:00"), duration: DEFAULT_DURATION_BY_TYPE.deliver,
+      travel: state.travelBuffer, lane: f.lane, type: "deliver", customer: f.customer, customerEmail: f.customerEmail,
+      address: f.address, mileage: 0,
+      notes: "Returning after workshop" + (w ? ` — bay work: ${w.notes || "no notes"}` : ""),
+      make: f.make, model: f.model, serial: f.serial, warranty: f.warranty, attended: false, status: "planned", apprentice: false,
+      linkRole: "deliver", linkedJobId: f.id, mileageMode: "chain", installDetails: Object.assign({}, f.installDetails)
+    };
+    const { error } = await sb.from("jobs").insert(appJobToDb(d));
+    if (error) { alert("Couldn't add the return leg: " + error.message); return; }
+    await recalcAllLanesDay(d.date);
+    await loadJobs();
+    currentView = "day";
+    render();
+  }
+  async function linkJobs(aId, bId, roleForA) {
+    const a = state.jobs.find(j => j.id === aId);
+    if (a) { a.linkRole = roleForA; a.linkedJobId = bId; }
+    if (!capCol("link_role")) { render(); return; }
+    const { error } = await sb.from("jobs").update(stripUnsupported({ link_role: roleForA, linked_job_id: bId })).eq("id", aId);
+    if (error) console.warn("Chain link save failed", error.message);
+  }
+  function renderChainStrip(job) {
+    const strip = document.getElementById("chainStrip");
+    const actions = document.getElementById("chainActions");
+    if (!strip || !actions) return;
+    if (!job) { strip.innerHTML = ""; actions.innerHTML = ""; return; }
+    const other = job.linkedJobId ? state.jobs.find(j => j.id === job.linkedJobId) : null;
+    strip.innerHTML = job.linkRole || other
+      ? `<div class="chain-strip">🔗 ${escapeHtml(linkRoleLabel(job.linkRole) || "Linked job")}`
+        + (other ? ` · <span class="chain-link" data-job="${other.id}">${escapeHtml(other.customer || "linked job")} on ${escapeHtml(fmtUKDate(other.date))}</span>` : "")
+        + `</div>`
+      : "";
+    strip.querySelectorAll("[data-job]").forEach(el => el.addEventListener("click", () => openJobModal(el.dataset.job)));
+    if (!session.isAdmin) { actions.innerHTML = ""; return; }
+    let html = "";
+    if (job.type === "site_visit" && job.attended) {
+      html += `<button id="chainFetchBtn">📥 Can't fix on site — book into the workshop</button>`;
+    }
+    if (job.type === "fetch" && !job.linkedJobId) {
+      html += `<button id="chainWorkshopBtn">🏭 Already in — book the workshop job</button>`;
+    }
+    if ((job.type === "workshop" || job.type === "fetch") && !hasDeliverLeg(job)) {
+      html += `<button id="chainDeliverBtn">📤 Ready to go back — add the return leg</button>`;
+    }
+    actions.innerHTML = html;
+    const fb = document.getElementById("chainFetchBtn");
+    if (fb) fb.addEventListener("click", () => { if (confirm("Book this machine into the workshop? A new workshop job will be created and linked.")) startFetchChain(job.id); });
+    const wb = document.getElementById("chainWorkshopBtn");
+    if (wb) wb.addEventListener("click", () => { if (confirm("Book the workshop job now?")) startFetchChain(job.id); });
+    const db = document.getElementById("chainDeliverBtn");
+    if (db) db.addEventListener("click", () => { if (confirm("Add a return leg to take the machine back to the customer?")) startDeliverChain(job.id); });
+  }
+  function hasDeliverLeg(job) {
+    // Only a genuine, non-null link counts — comparing two null ids would match
+    // every unrelated deliver job on the board.
+    return state.jobs.some(j => j.id !== job.id && j.type === "deliver" && (
+      (job.id && j.linkedJobId === job.id) ||
+      (job.linkedJobId && j.linkedJobId === job.linkedJobId)
+    ));
+  }
+
+  // ---------- Setup (office only) ----------
+  const LANE_COLOURS = ["#3F6B4C","#4E6373","#B9812E","#7A5C8E","#A5433A","#2F6F6B","#8E6B3E","#5B6B2F"];
+  function randomAccessCode(viewer) {
+    // Ambiguous characters (0/O, 1/I) left out so codes can be read over the phone.
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let out = "";
+    for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return viewer ? VIEWER_CODE_PREFIX + out : out;
+  }
+  // techs.id is a text primary key with no default, so every insert has to bring
+  // its own id. The live rows are "office", "tech1", "tech2" - short slugs.
+  function newTechId(name) {
+    const taken = state.techs.map(t => t.id);
+    state.lanes.forEach(l => { if (taken.indexOf(l.id) === -1) taken.push(l.id); });
+    return slugLaneId(name, taken);
+  }
+  function slugLaneId(name, takenIds) {
+    let base = (name || "lane").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 18) || "lane";
+    if (!base) base = "lane";
+    let id = base, n = 2;
+    while (takenIds.indexOf(id) !== -1) id = base + n++;
+    return id;
+  }
+  function laneJobCount(laneId) {
+    const todayStr = fmtISODate(startOfDay(new Date()));
+    return state.jobs.filter(j => j.lane === laneId && j.date >= todayStr).length;
+  }
+
+  function renderSetup() {
+    const el = document.getElementById("content");
+    if (!session.isAdmin) { el.innerHTML = `<div class="data-wrap"><div class="empty-hint">Setup is office-only.</div></div>`; return; }
+
+    const lanes = state.lanes.slice().sort((a,b) => (a.sort_order||0) - (b.sort_order||0));
+    const techByLane = {};
+    state.techs.forEach(t => { if (t.lane_id) techByLane[t.lane_id] = t; });
+
+    const laneRows = lanes.map(l => {
+      const t = techByLane[l.id];
+      const isWs = isWorkshopLane(l.id);
+      return `<tr>
+        <td><span class="swatch" style="background:${l.color}"></span> ${escapeHtml(l.name)}${isWs ? ` <span class="tag-bay">workshop</span>` : ""}</td>
+        <td style="font-family:ui-monospace,monospace; font-size:12px;">${escapeHtml(l.id)}</td>
+        <td>${laneJobCount(l.id)} upcoming</td>
+        <td>${t ? escapeHtml(t.name) : `<span style="color:var(--ink-soft)">no login</span>`}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button class="ghost" data-setup-lane-rename="${l.id}" style="padding:4px 8px; font-size:11.5px;">Rename</button>
+          <button class="ghost" data-setup-lane-colour="${l.id}" style="padding:4px 8px; font-size:11.5px;">Colour</button>
+          <button class="ghost" data-setup-lane-delete="${l.id}" style="padding:4px 8px; font-size:11.5px; color:var(--danger);">Remove</button>
+        </td>
+      </tr>`;
+    }).join("");
+
+    const codeRows = state.techs.slice().sort((a,b) => a.name.localeCompare(b.name)).map(t => {
+      const lane = t.lane_id ? laneById(t.lane_id) : null;
+      const viewer = !t.is_admin && isViewerCode(t.access_code);
+      const role = t.is_admin
+        ? `<span class="status-pill status-confirmed">Office</span>`
+        : viewer
+          ? `<span class="status-pill">Viewer</span>`
+          : `<span style="color:var(--ink-soft)">Technician</span>`;
+      const laneCell = viewer
+        ? `<span style="color:var(--ink-soft)">none, by design</span>`
+        : lane ? escapeHtml(lane.name) : `<span style="color:var(--ink-soft)">office (no lane)</span>`;
+      // Without an email this person cannot sign in at all, so say so plainly
+      // rather than leaving a blank cell to be discovered later.
+      const emailCell = t.email
+        ? `<span style="font-size:12.5px;">${escapeHtml(t.email)}</span>`
+        : `<span style="color:var(--amber); font-weight:600;">not set — can't sign in</span>`;
+      const emailBtn = t.email
+        ? `<button class="ghost" data-setup-tech-email="${t.id}" style="padding:4px 8px; font-size:11.5px;">Change</button>
+           <button class="ghost" data-setup-tech-send="${t.id}" style="padding:4px 8px; font-size:11.5px;">Send link</button>`
+        : `<button class="ghost" data-setup-tech-email="${t.id}" style="padding:4px 8px; font-size:11.5px;">Add email</button>`;
+      const roleBtn = t.is_admin
+        ? `<button class="ghost" data-setup-tech-admin="${t.id}" data-setup-admin="1" style="padding:4px 8px; font-size:11.5px;">Make technician</button>`
+        : `<button class="ghost" data-setup-tech-role="${t.id}" data-to-viewer="${viewer ? "0" : "1"}" style="padding:4px 8px; font-size:11.5px;">${viewer ? "Make team member" : "Make viewer"}</button>
+           <button class="ghost" data-setup-tech-admin="${t.id}" data-setup-admin="0" style="padding:4px 8px; font-size:11.5px;">Make office</button>`;
+      return `<tr>
+        <td>${escapeHtml(t.name)}</td>
+        <td>${laneCell}</td>
+        <td>${emailCell}</td>
+        <td>${role}</td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button class="ghost" data-setup-tech-rename="${t.id}" style="padding:4px 8px; font-size:11.5px;">Rename</button>
+          ${emailBtn}
+          ${roleBtn}
+        </td>
+      </tr>`;
+    }).join("");
+
+    el.innerHTML = `
+      <div class="setup-grid">
+        <div class="setup-error" id="setupError" style="display:none;" role="alert"></div>
+        <section class="setup-card">
+          <h3>Team &amp; workshop</h3>
+          <p class="setup-note">Everyone who appears as a column on the diary, plus the workshop. Add a workshop guy here and they get a column of their own.</p>
+          <div class="data-wrap"><table class="data-table">
+            <thead><tr><th>Name</th><th>ID</th><th>Jobs</th><th>Login</th><th></th></tr></thead>
+            <tbody>${laneRows || `<tr><td colspan="5" class="empty-hint">No lanes yet.</td></tr>`}</tbody>
+          </table></div>
+          <div class="setup-actions">
+            <button class="primary" id="setupAddLane">+ Add a team member</button>
+            <span class="setup-hint">ID and colour are set for you.</span>
+          </div>
+        </section>
+
+        <section class="setup-card">
+          <h3>Logins</h3>
+          <p class="setup-note">Nobody uses a shared code any more. Put each person's work email in here and they sign in by
+            clicking a link we email them — no password for anyone to forget, share or lose. <b>A login with no email cannot sign in at all.</b>
+            A <b>viewer</b> sees the whole diary and can send job requests, but can never add a job and is never booked to.</p>
+          <div class="data-wrap"><table class="data-table">
+            <thead><tr><th>Name</th><th>Diary column</th><th>Sign-in email</th><th>Role</th><th></th></tr></thead>
+            <tbody>${codeRows || `<tr><td colspan="5" class="empty-hint">No logins yet.</td></tr>`}</tbody>
+          </table></div>
+          <div class="setup-actions">
+            <button class="primary" id="setupAddTech">+ Add a login</button>
+            <span class="setup-hint">They can sign in as soon as their email is set.</span>
+          </div>
+        </section>
+
+        <section class="setup-card">
+          <h3>How the diary behaves</h3>
+          <ul class="setup-note" style="padding-left:18px; margin:0;">
+            <li>Unfinished workshop jobs are pulled forward to today automatically, so nothing goes stale. Tick <b>Attended</b> to settle one for good.</li>
+            <li>Once a day passes, its jobs leave the diary and move to <b>Follow-up</b>, split into to invoice and needs rebooking.</li>
+            <li>Mileage is chained job to job from the depot; switch a job to a round trip or type real miles if the route's wrong.</li>
+          </ul>
+        </section>
+      </div>`;
+
+    wireSetupActions();
+  }
+
+  function wireSetupActions() {
+    const el = document.getElementById("content");
+    // A toast disappears after a few seconds, and a write that the database
+    // refused is exactly the thing you must not miss. Put it on the page.
+    const clearSetupError = () => {
+      const box = document.getElementById("setupError");
+      if (box) { box.style.display = "none"; box.textContent = ""; }
+    };
+    const showSetupError = (what, error) => {
+      const msg = (error && (error.message || error)) || "unknown error";
+      notify(`${what} failed: ${msg}`, 8000);
+      const box = document.getElementById("setupError");
+      if (!box) return;
+      let hint = "";
+      if (/\bid\b/i.test(msg) && /null value|not-null|violates not null/i.test(msg)) {
+        hint = `<br><span>The login is missing its id. That is a bug in this page, not in what you typed.</span>`;
+      } else if (/row-level security|RLS|permission denied/i.test(msg)) {
+        hint = `<br><span>The database is refusing writes from this app. That is a permissions problem,
+          not a mistake in what you typed.</span>`;
+      } else if (/duplicate key|already exists/i.test(msg)) {
+        hint = `<br><span>Something with that name or code already exists. Try a different name.</span>`;
+      }
+      box.innerHTML = `<b>${escapeHtml(what)} failed &mdash; nothing was changed</b><code>${escapeHtml(String(msg))}</code>${hint}`;
+      box.style.display = "";
+      box.scrollIntoView({ block: "nearest" });
+    };
+    const fail = (what, error) => showSetupError(what, error);
+
+    // A code that is already in use would drop the new person straight into
+    // somebody else's account, so check before writing rather than after.
+    async function freshAccessCode(viewer) {
+      for (let tries = 0; tries < 8; tries++) {
+        const code = randomAccessCode(viewer);
+        const clash = await sb.from("techs").select("id").eq("access_code", code).maybeSingle();
+        if (clash.error) return null;
+        if (!clash.data) return code;
+      }
+      return null;
+    }
+
+    // Two people must never end up on one address: Supabase would treat the
+    // second as the first, and one of them would be locked out.
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    async function askForEmail(name, allowBlank, takenId) {
+      const tip = `\n\nThis is how they sign in, so it has to be an address they can open on a phone.`;
+      let answer = (prompt(`Work email for ${name}?${tip}`, "") || "").trim();
+      if (!answer && allowBlank) return "";
+      if (!answer) return null;
+      let email = answer.toLowerCase();
+      let tries = 0;
+      while (!EMAIL_RE.test(email) || (await emailTaken(email, takenId))) {
+        if (++tries > 4) return null;
+        email = (prompt(
+          !EMAIL_RE.test(email)
+            ? `That doesn't look like an email address. Try again for ${name}:`
+            : `${email} is already on someone else's login. Which address should ${name} use?`
+        ) || "").trim().toLowerCase();
+      }
+      return email;
+    }
+    async function emailTaken(email, exceptId) {
+      let q = sb.from("techs").select("id,name").eq("email", email);
+      if (exceptId) q = q.neq("id", exceptId);
+      const { data, error } = await q.limit(1);
+      return !error && !!(data && data.length);
+    }
+
+    document.getElementById("setupAddLane").addEventListener("click", async () => {
+      clearSetupError();
+      const name = (prompt("Name for the new diary column (e.g. Joe K, or Workshop):") || "").trim();
+      if (!name) return;
+      const id = slugLaneId(name, state.lanes.map(l => l.id));
+      const colour = LANE_COLOURS[state.lanes.length % LANE_COLOURS.length];
+      const nextSort = state.lanes.reduce((m, l) => Math.max(m, Number(l.sort_order) || 0), 0) + 1;
+      const { error } = await sb.from("lanes").insert({ id, name, color: colour, sort_order: nextSort });
+      if (error) return fail("Adding that column", error);
+      // Give them a login straight away so the column isn't a dead end.
+      // techs.id is a text primary key, so it has to be sent.
+      const code = randomAccessCode(false);
+      const techId = state.techs.some(t => t.id === id) ? newTechId(name) : id;
+      const email = await askForEmail(name, true, techId);
+      if (email === null) { email = ""; }
+      const ins = await sb.from("techs").insert({ id: techId, name, access_code: code, lane_id: id, is_admin: false, email: email || null });
+      if (ins.error) showSetupError(`${name} was added to the diary, but their login was not`, ins.error);
+      else notify(email
+        ? `${name} added. They can sign in with ${email} — use “Send link” in the logins table to give them their first one.`
+        : `${name} added, but with no email they can't sign in yet — add one in the logins table.`, 12000);
+      await Promise.all([loadLanes(), loadTechs()]);
+      render();
+    });
+
+    document.getElementById("setupAddTech").addEventListener("click", async () => {
+      clearSetupError();
+      const name = (prompt("Name for the new login:") || "").trim();
+      if (!name) return;
+      const techId = newTechId(name);
+      const email = await askForEmail(name, false, techId);
+      if (email === null) return notify(`No email given, so ${name} was not added.`, 6000);
+      const roleAns = (prompt(
+        `What should ${name} be allowed to do?\n\n` +
+        `1. Team member — on the diary, records work on their own jobs\n` +
+        `2. Viewer — sees the whole diary and can request jobs, but can never add one\n\n` +
+        `Type 1 or 2 (blank means 1):`, "1") || "").trim();
+      const viewer = /^(2|v|viewer)$/i.test(roleAns);
+      let chosen = "";
+      if (!viewer && state.lanes.length) {
+        const laneAns = (prompt(
+          `Which diary column is ${name} on?\n${state.lanes.map((l,i) => `${i+1}. ${l.name}`).join("\n")}\n\n` +
+          `Number, or leave blank if they only ever request jobs:`, "1") || "").trim();
+        chosen = /^\d+$/.test(laneAns) ? (state.lanes[Number(laneAns) - 1] || {}).id : "";
+      }
+      const code = await freshAccessCode(viewer);
+      if (!code) return fail("Adding that login", { message: "could not find an unused access code — try again" });
+      const { error } = await sb.from("techs").insert({ id: techId, name, access_code: code, lane_id: chosen || null, is_admin: false, email });
+      if (error) return fail("Adding that login", error);
+      await loadTechs();
+      render();
+      notify(`${name} added as ${viewer ? "a viewer" : "a team member"}. They sign in with ${email} — “Send link” in the logins table gives them their first one.`, 12000);
+    });
+
+    // The role lives in the code column, so switching it reissues the code. That
+    // is invisible to the person now - they sign in by email either way.
+    el.querySelectorAll("[data-setup-tech-role]").forEach(b => b.addEventListener("click", async () => {
+      clearSetupError();
+      const id = b.getAttribute("data-setup-tech-role");
+      const t = state.techs.find(x => x.id === id);
+      if (!t) return;
+      const toViewer = b.getAttribute("data-to-viewer") === "1";
+      if (toViewer) {
+        if (!confirm(`Make ${t.name} a viewer?\n\nThey keep seeing the whole diary and can still send job requests, but they cannot add jobs and nothing can be booked to them.`)) return;
+      } else {
+        if (!confirm(`Make ${t.name} a team member?\n\nThey will need a diary column before work can be booked to them — set that afterwards.`)) return;
+      }
+      const code = await freshAccessCode(toViewer);
+      if (!code) return fail("Changing that login", { message: "could not find an unused access code — try again" });
+      const { error } = await sb.from("techs").update({ access_code: code }).eq("id", id);
+      if (error) return fail("Changing that login", error);
+      await loadTechs();
+      render();
+      notify(`${t.name} is now ${toViewer ? "a viewer" : "a team member"}. Their sign-in hasn't changed — still ${t.email || "no email set"}.`);
+    }));
+
+    // An existing login with no email can never sign in, so this is the one
+    // button that makes the magic link work for people already in the table.
+    el.querySelectorAll("[data-setup-tech-email]").forEach(b => b.addEventListener("click", async () => {
+      clearSetupError();
+      const id = b.getAttribute("data-setup-tech-email");
+      const t = state.techs.find(x => x.id === id);
+      if (!t) return;
+      const email = await askForEmail(t.name, false, id);
+      if (email === null) return;
+      const { error } = await sb.from("techs").update({ email }).eq("id", id);
+      if (error) return fail("Saving that email", error);
+      await loadTechs();
+      render();
+      notify(`${t.name} can now sign in with ${email}. “Send link” gives them their first one.`);
+    }));
+
+    // Sending someone's first link from here, so nobody has to guess the
+    // address. Same rate limit as the login screen, so it's used sparingly.
+    el.querySelectorAll("[data-setup-tech-send]").forEach(b => b.addEventListener("click", async () => {
+      clearSetupError();
+      const id = b.getAttribute("data-setup-tech-send");
+      const t = state.techs.find(x => x.id === id);
+      if (!t || !t.email) return;
+      try {
+        await signIn(t.email);
+        notify(`Sign-in link sent to ${t.email}. It works once, and only they can use it.`, 9000);
+      } catch (e) {
+        fail(`Sending a link to ${t.email}`, e);
+      }
+    }));
+
+    el.querySelectorAll("[data-setup-lane-rename]").forEach(b => b.addEventListener("click", async () => {
+      const id = b.getAttribute("data-setup-lane-rename");
+      const lane = laneById(id);
+      const next = (prompt("Rename this column:", lane.name) || "").trim();
+      if (!next || next === lane.name) return;
+      const { error } = await sb.from("lanes").update({ name: next }).eq("id", id);
+      if (error) return fail("Renaming", error);
+      await loadLanes();
+      render();
+    }));
+
+    el.querySelectorAll("[data-setup-lane-colour]").forEach(b => b.addEventListener("click", async () => {
+      const id = b.getAttribute("data-setup-lane-colour");
+      const lane = laneById(id);
+      const next = (prompt(`Colour for ${lane.name}.\nUse a hex colour, or type a number 1-${LANE_COLOURS.length} to pick one:`, lane.color || "") || "").trim();
+      if (!next) return;
+      const asNum = parseInt(next, 10);
+      const colour = (/^\d+$/.test(next) && asNum >= 1 && asNum <= LANE_COLOURS.length) ? LANE_COLOURS[asNum - 1] : next;
+      if (!/^#[0-9a-fA-F]{3,8}$/.test(colour)) return notify("That doesn't look like a colour — use something like #3F6B4C.", 7000);
+      const { error } = await sb.from("lanes").update({ color: colour }).eq("id", id);
+      if (error) return fail("Changing the colour", error);
+      await loadLanes();
+      render();
+    }));
+
+    el.querySelectorAll("[data-setup-lane-delete]").forEach(b => b.addEventListener("click", async () => {
+      const id = b.getAttribute("data-setup-lane-delete");
+      const lane = laneById(id);
+      const upcoming = laneJobCount(id);
+      if (!confirm(`Remove ${lane.name} from the diary?\n\nJobs already booked to them stay where they are — they just won't have a column to sit in. This can't be undone from here.`)) return;
+      const { error } = await sb.from("lanes").delete().eq("id", id);
+      if (error) return fail("Removing that column", error);
+      // Keep their login usable but park it off the board.
+      const orphan = state.techs.find(t => t.lane_id === id);
+      if (orphan) await sb.from("techs").update({ lane_id: null }).eq("id", orphan.id);
+      state.activeLanes = state.activeLanes.filter(x => x !== id);
+      notify(`${lane.name} removed${upcoming ? ` — ${upcoming} upcoming job${upcoming === 1 ? "" : "s"} still assigned to them` : ""}.`, 8000);
+      await Promise.all([loadLanes(), loadTechs()]);
+      render();
+    }));
+
+    el.querySelectorAll("[data-setup-tech-rename]").forEach(b => b.addEventListener("click", async () => {
+      const id = b.getAttribute("data-setup-tech-rename");
+      const t = state.techs.find(x => x.id === id);
+      const next = (prompt("Rename this person:", t.name) || "").trim();
+      if (!next || next === t.name) return;
+      const { error } = await sb.from("techs").update({ name: next }).eq("id", id);
+      if (error) return fail("Renaming", error);
+      await loadTechs();
+      render();
+    }));
+
+    // No "new code" button any more: the code is only a role marker now, and
+    // there is nothing to reissue for.
+    el.querySelectorAll("[data-setup-tech-admin]").forEach(b => b.addEventListener("click", async () => {
+      clearSetupError();
+      const id = b.getAttribute("data-setup-tech-admin");
+      const t = state.techs.find(x => x.id === id);
+      const makeAdmin = b.getAttribute("data-setup-admin") !== "1";
+      if (t.id === session.id) return notify("You can't change your own role — ask another office user.", 7000);
+      // The code carries the viewer flag, so dropping someone from office has to
+      // drop the prefix too, otherwise they stay a viewer and the table lies.
+      const patch = { is_admin: makeAdmin };
+      if (!makeAdmin && isViewerCode(t.access_code)) {
+        const code = await freshAccessCode(false);
+        if (!code) return fail("Changing that role", { message: "could not find an unused access code — try again" });
+        patch.access_code = code;
+        if (!confirm(`${t.name} will stop being office and will become a technician.\n\nNothing else about their sign-in changes.`)) return;
+      }
+      const { error } = await sb.from("techs").update(patch).eq("id", id);
+      if (error) return fail("Changing that role", error);
+      notify(patch.access_code
+        ? `${t.name} is now a technician. They still sign in with ${t.email || "no email set"}.`
+        : `${t.name} is now ${makeAdmin ? "office" : "a technician"}.`);
+      await loadTechs();
+      render();
+    }));
   }
 
   function renderChaseBanner() {
@@ -1377,7 +2777,10 @@
     if (currentView === "month") renderMonth();
     else if (currentView === "week") renderWeek();
     else if (currentView === "day") renderDay();
+    else if (currentView === "bays") renderBays();
+    else if (currentView === "mileage") renderMileage();
     else if (currentView === "requests") renderRequests();
+    else if (currentView === "setup") renderSetup();
     else renderFollowUp();
   }
 
@@ -1394,9 +2797,68 @@
     sel.innerHTML = opts.map(m => `<option value="${m}">${formatDuration(m, state.workDayMins)}</option>`).join("");
   }
   function defaultDurationForType(type) { return type === "demo" ? state.workDayMins : (DEFAULT_DURATION_BY_TYPE[type] || 60); }
+  function populateBaySelect() {
+    const sel = document.getElementById("f_bay");
+    const names = bayNames();
+    sel.innerHTML = `<option value="">— no bay —</option>` + names.map(n => `<option value="${escapeAttr(n)}">${escapeHtml(n)}</option>`).join("");
+  }
+  function renderInstallFields(job) {
+    const wrap = document.getElementById("installWrap");
+    const head = document.getElementById("installHead");
+    if (!wrap || !head) return;
+    const show = !!capCol("install_details");
+    wrap.style.display = show ? "" : "none";
+    head.style.display = show ? "" : "none";
+    if (!show) return;
+    const d = (job && job.installDetails) || {};
+    let html = INSTALL_SPEC.map(s => {
+      const id = "if_" + s[0];
+      const v = d[s[0]] == null ? "" : d[s[0]];
+      const input = s[2] === "select"
+        ? `<select id="${id}"><option value="">—</option><option value="Yes"${v === "Yes" ? " selected" : ""}>Yes</option><option value="No"${v === "No" ? " selected" : ""}>No</option></select>`
+        : `<input type="${s[2]}" id="${id}" value="${escapeAttr(v)}" placeholder="${escapeAttr(s[3] || "")}">`;
+      return `<div class="field"><label for="${id}">${escapeHtml(s[1])}</label>${input}</div>`;
+    }).join("");
+    if (capCol("follow_up_on")) {
+      html += `<div class="field"><label for="f_follow_up_on">Follow-up date</label><input type="date" id="f_follow_up_on" value="${escapeAttr((job && job.followUpOn) || "")}"></div>`;
+    }
+    if (capCol("handover_signed")) {
+      const signed = job && job.handoverSigned;
+      html += `<div class="field"><label for="f_handover_signed">Handover signed</label><select id="f_handover_signed"><option value="false"${!signed ? " selected" : ""}>Not yet</option><option value="true"${signed ? " selected" : ""}>Signed</option></select></div>`;
+    }
+    wrap.innerHTML = html;
+  }
+  function readInstallFields() {
+    const wrap = document.getElementById("installWrap");
+    if (!wrap || wrap.style.display === "none") return null;
+    const out = {};
+    INSTALL_SPEC.forEach(s => {
+      const el = document.getElementById("if_" + s[0]);
+      if (el && el.value !== "") out[s[0]] = el.value;
+    });
+    return out;
+  }
+  function updateJobTypeVisibility() {
+    const type = document.getElementById("f_type").value;
+    document.getElementById("f_linkRoleField").style.display = (type === "fetch" || type === "workshop" || type === "deliver") ? "" : "none";
+    const lane = document.getElementById("f_lane").value;
+    document.getElementById("f_bayField").style.display = isWorkshopLane(lane) ? "" : "none";
+    // Install detail only makes sense on installs; a demo or site visit shouldn't carry a wire spec.
+    const showInstall = capCol("install_details") && type === "install";
+    const wrap = document.getElementById("installWrap");
+    const det = document.getElementById("installDetails");
+    if (det) {
+      det.style.display = showInstall ? "" : "none";
+      // Open it by default for an install, but never fight the user once they've
+      // opened or closed it themselves.
+      if (showInstall && det.dataset.touched !== "1") det.open = true;
+    }
+    if (wrap) wrap.style.display = showInstall ? "" : "none";
+  }
   function updateApprenticeVisibility() {
     const lane = document.getElementById("f_lane").value;
-    document.getElementById("apprenticeField").style.display = (lane === "workshop") ? "none" : "";
+    document.getElementById("apprenticeField").style.display = isWorkshopLane(lane) ? "none" : "";
+    updateJobTypeVisibility();
   }
   function updateMapsLink() {
     const addr = document.getElementById("f_address").value.trim();
@@ -1406,18 +2868,27 @@
   }
 
   function setModalReadOnly(isAdmin) {
-    const techEditable = new Set(["f_notes", "f_attended"]); // fields techs can still edit on an existing job
-    ["f_jobnum","f_date","f_time","f_travel","f_duration","f_lane","f_type","f_customer","f_customeremail","f_address","f_notes","f_status","f_apprentice","f_make","f_model","f_serial","f_warranty","f_attended"]
+    // A viewer reads jobs and nothing more: no field editable, no save, no delete.
+    const viewer = !!(session && session.isViewer);
+    const techEditable = viewer ? new Set() : new Set(["f_notes", "f_attended", "f_installwrap"]); // fields techs can still edit on an existing job
+    ["f_jobnum","f_date","f_time","f_travel","f_duration","f_lane","f_type","f_customer","f_customeremail","f_address","f_notes","f_status","f_apprentice","f_make","f_model","f_serial","f_warranty","f_attended",
+      "f_mileageMode","f_mileageOverride","f_bay","f_linkrole"]
       .forEach(id => { document.getElementById(id).disabled = isAdmin ? false : !techEditable.has(id); });
-    document.getElementById("saveJobBtn").style.display = "";
+    document.getElementById("saveJobBtn").style.display = viewer ? "none" : "";
     document.getElementById("saveJobBtn").textContent = isAdmin ? "Save job" : "Save notes";
     document.getElementById("deleteJobBtn").style.display = isAdmin ? "inline-block" : "none";
+    // A technician can still record what they did on the machine, so the install
+    // detail boxes stay editable even though the scheduling fields are locked.
+    if (!isAdmin && !viewer) document.querySelectorAll("#installWrap input, #installWrap select").forEach(el => { el.disabled = false; });
+    const note = document.getElementById("viewerJobNote");
+    if (note) note.style.display = viewer ? "" : "none";
   }
 
   function openJobModal(jobId, presetDate, presetLane) {
     pendingRequestId = null;
     populateLaneSelect();
     populateDurationSelect();
+    populateBaySelect();
     const overlay = document.getElementById("overlay");
     const job = jobId ? state.jobs.find(j => j.id === jobId) : null;
     modalIsNewJob = !job;
@@ -1450,18 +2921,49 @@
     if (job && job.mileage != null) {
       document.getElementById("f_mileage").value = job.mileage;
       const savedMiles = Number(job.mileage);
-      const savedNet = savedMiles * RETURN_MILEAGE_RATE_PER_MILE;
-      const savedGross = savedNet * (1 + VAT_RATE);
-      document.getElementById("mileageInfo").textContent = `${savedMiles.toFixed(1)} mi return trip · £${savedNet.toFixed(2)} +VAT (£${savedGross.toFixed(2)} total)`;
+      const savedNet = money(savedMiles);
+      setMileageInfo(`${savedMiles.toFixed(1)} mi attributed to this job · £${savedNet.toFixed(2)} +VAT (£${(savedNet*(1+VAT_RATE)).toFixed(2)} total)`
+        + (job.mileageMode === "round" ? " · round trip" : " · chained"));
       const pc = extractPostcode(document.getElementById("f_address").value);
       if (pc) geocodePostcode(pc).then(c => { if (myModalToken === suggestState.token && c) { suggestState.siteCoords = c; suggestDates(); } });
     } else {
       document.getElementById("f_mileage").value = "";
-      document.getElementById("mileageInfo").textContent = "";
+      setMileageInfo("");
       if (document.getElementById("f_address").value.trim()) updateMileage(); // e.g. address present but never calculated
     }
     document.getElementById("f_notes").value = job ? (job.notes||"") : "";
     document.getElementById("f_status").value = job ? (job.status||"planned") : "planned";
+    document.getElementById("f_mileageMode").value = job ? (job.mileageMode || "chain") : "chain";
+    document.getElementById("f_mileageOverride").value = job && job.mileageOverride != null ? job.mileageOverride : "";
+    document.getElementById("f_bay").value = job ? (job.workshopBay || "") : "";
+    document.getElementById("f_linkrole").value = job ? (job.linkRole || "") : "";
+    const issueEl = document.getElementById("distanceIssue");
+    if (job && job.distanceError) {
+      issueEl.style.display = "";
+      issueEl.textContent = "⚠ " + job.distanceError.charAt(0).toUpperCase() + job.distanceError.slice(1) + ". Type the miles in the mileage box below, or add a postcode to the address.";
+    } else {
+      issueEl.style.display = "none";
+      issueEl.textContent = "";
+    }
+    renderInstallFields(job);
+    renderChainStrip(job);
+    // If a collapsed section already holds data for this job, open it once so
+    // saved notes/machine details are never hidden on open. After that the
+    // section stays wherever the user left it.
+    const more = document.getElementById("moreDetails");
+    if (more) {
+      if (more.dataset.touched !== "1") {
+        // Only genuine text/data presence should pull the section open. A travel
+        // time of 0 is a normal value, not a reason to force it open for every job.
+        const hasHiddenData = job && (
+          !!(job.notes || job.customerEmail || job.make || job.model || job.serial || job.warranty)
+          || !!job.apprentice
+          || !!(job.installDetails && Object.keys(job.installDetails || {}).length)
+        );
+        more.open = !!hasHiddenData;
+      }
+    }
+    document.getElementById("printCardBtn").style.display = job && capCol("install_details") ? "inline-block" : "none";
     updateApprenticeVisibility();
     setModalReadOnly(session.isAdmin);
     if (!job) document.getElementById("deleteJobBtn").style.display = "none";
@@ -1469,13 +2971,42 @@
     if (job) { refreshTimerDisplays(); timerTickHandle = setInterval(refreshTimerDisplays, 1000); }
     overlay.classList.add("open");
   }
-  document.getElementById("f_type").addEventListener("change", (e) => { if (modalIsNewJob) document.getElementById("f_duration").value = defaultDurationForType(e.target.value); });
-  document.getElementById("f_lane").addEventListener("change", updateApprenticeVisibility);
+  document.getElementById("f_type").addEventListener("change", (e) => {
+    if (modalIsNewJob) document.getElementById("f_duration").value = defaultDurationForType(e.target.value);
+    updateJobTypeVisibility();
+  });
+  // Once the user opens or closes a collapsed section, stop auto-opening it.
+  ["moreDetails", "installDetails"].forEach(id => {
+    const det = document.getElementById(id);
+    if (det) det.addEventListener("toggle", () => { det.dataset.touched = "1"; });
+  });
+  document.getElementById("f_lane").addEventListener("change", () => { updateApprenticeVisibility(); populateBaySelect(); debouncedUpdateMileage(); });
   document.getElementById("f_address").addEventListener("input", updateMapsLink);
   document.getElementById("f_address").addEventListener("input", debouncedUpdateMileage);
   document.getElementById("f_date").addEventListener("input", updateDateConfirm);
+  document.getElementById("f_time").addEventListener("change", debouncedUpdateMileage);
   document.getElementById("f_duration").addEventListener("change", suggestDates);
+  document.getElementById("f_mileageMode").addEventListener("change", () => {
+    updateMileage();
+    if (!document.getElementById("f_mileageOverride").value) recalcDayMileage(document.getElementById("f_date").value, document.getElementById("f_lane").value).then(render);
+  });
+  document.getElementById("f_mileageOverride").addEventListener("change", () => {
+    const prev = modalIsNewJob ? null : state.jobs.find(j => j.id === document.getElementById("jobId").value);
+    if (prev) {
+      prev.mileageOverride = document.getElementById("f_mileageOverride").value ? Number(document.getElementById("f_mileageOverride").value) : null;
+      recalcDayMileage(prev.date, prev.lane).then(() => openJobModal(prev.id));
+    } else {
+      updateMileage();
+    }
+  });
   document.getElementById("f_travel").addEventListener("input", debounce(suggestDates, 400));
+  document.getElementById("f_addBayBtn").addEventListener("click", async () => {
+    const before = document.getElementById("f_bay").value;
+    await addBay();
+    populateBaySelect();
+    document.getElementById("f_bay").value = before;
+  });
+  document.getElementById("printCardBtn").addEventListener("click", () => printJobCard(document.getElementById("jobId").value));
   document.getElementById("suggestPanel").addEventListener("click", (e) => {
     const btn = e.target.closest(".suggestBtn");
     if (!btn) return;
@@ -1505,6 +3036,10 @@
   }
 
   async function saveJobFromForm() {
+    if (session && session.isViewer) {
+      notify("A viewer can't change jobs. Send a job request and the office will book it.", 7000);
+      return;
+    }
     const id = document.getElementById("jobId").value || null;
     const date = document.getElementById("f_date").value;
     if (!date) { alert("Please set a date."); return; }
@@ -1526,8 +3061,25 @@
       address: document.getElementById("f_address").value.trim(),
       mileage: document.getElementById("f_mileage").value ? Number(document.getElementById("f_mileage").value) : null,
       notes: document.getElementById("f_notes").value.trim(),
-      status: document.getElementById("f_status").value
+      status: document.getElementById("f_status").value,
+      mileageMode: document.getElementById("f_mileageMode").value,
+      mileageOverride: document.getElementById("f_mileageOverride").value ? Number(document.getElementById("f_mileageOverride").value) : null,
+      workshopBay: document.getElementById("f_bay").value || null,
+      linkRole: document.getElementById("f_linkrole").value || null,
+      installDetails: readInstallFields() || (id ? (state.jobs.find(j => j.id === id) || {}).installDetails : {}) || {},
+      followUpOn: (document.getElementById("f_follow_up_on") || {}).value || null,
+      handoverSigned: (document.getElementById("f_handover_signed") || {}).value === "true",
+      distanceSource: "osrm",
+      distanceError: null,
+      linkedJobId: id ? ((state.jobs.find(j => j.id === id) || {}).linkedJobId || null) : null
     };
+    // Preserve the existing link when the office is editing — the chain buttons own that field.
+    const prev = id ? state.jobs.find(j => j.id === id) : null;
+    if (prev) {
+      job.linkedJobId = prev.linkedJobId || null;
+      if (!job.linkRole) job.linkRole = prev.linkRole || null;
+      if (!document.getElementById("f_follow_up_on")) job.followUpOn = prev.followUpOn || null;
+    }
     const dupes = findDuplicateJobs(job, id);
     if (dupes.length) {
       const d = dupes[0];
@@ -1547,16 +3099,31 @@
       if (!proceed) return;
     }
     const dbRow = appJobToDb(job);
-    if (id) await sb.from("jobs").update(dbRow).eq("id", id);
-    else await sb.from("jobs").insert(dbRow);
+    if (id) {
+      const { error } = await sb.from("jobs").update(dbRow).eq("id", id);
+      if (error) { alert("Couldn't save that job: " + error.message); return; }
+    } else {
+      const { error } = await sb.from("jobs").insert(dbRow);
+      if (error) { alert("Couldn't save that job: " + error.message); return; }
+    }
     if (pendingRequestId) {
       await sb.from("job_requests").update({ status: "actioned" }).eq("id", pendingRequestId);
       pendingRequestId = null;
       await loadJobRequests();
     }
-    await loadJobs(); closeModal(); render();
+    await loadJobs();
+    // Adding, moving or re-timing a job changes the whole day's route, so rebuild it.
+    if (!isWorkshopLane(job.lane) && (job.address || (prev && prev.address))) {
+      try { await recalcDayMileage(job.date, job.lane); } catch (e) { console.warn("Mileage recalc failed", e); }
+      if (prev && (prev.lane !== job.lane || prev.date !== job.date)) {
+        try { await recalcDayMileage(prev.date, prev.lane); } catch (e) { console.warn("Mileage recalc failed", e); }
+      }
+      await loadJobs();
+    }
+    closeModal(); render();
   }
   async function deleteCurrentJob() {
+    if (session && session.isViewer) return notify("A viewer can't delete jobs.", 5000);
     const id = document.getElementById("jobId").value;
     if (!id) return;
     if (!confirm("Delete this job?")) return;
@@ -1565,7 +3132,7 @@
   }
 
   // ---------- Wiring ----------
-  document.querySelectorAll(".view-switch button").forEach(b => b.addEventListener("click", () => { currentView = b.dataset.view; render(); }));
+  document.querySelectorAll(".view-switch button").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
   document.getElementById("prevBtn").addEventListener("click", () => {
     if (currentView === "month") cursorDate = new Date(cursorDate.getFullYear(), cursorDate.getMonth()-1, 1);
     else if (currentView === "week") cursorDate = addDays(cursorDate, -7);
@@ -1594,7 +3161,7 @@
   document.getElementById("travelBuffer").addEventListener("change", (e) => { state.travelBuffer = Number(e.target.value)||0; localStorage.setItem("fd.travelBuffer", state.travelBuffer); });
 
   document.getElementById("exportBtn").addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify({ lanes: state.lanes, jobs: state.jobs }, null, 2)], {type:"application/json"});
+    const blob = new Blob([JSON.stringify({ lanes: state.lanes, bays: state.bays, jobs: state.jobs }, null, 2)], {type:"application/json"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `field-diary-backup-${fmtISODate(new Date())}.json`;
@@ -1606,10 +3173,7 @@
     render();
   });
 
-  document.getElementById("signOutBtn").addEventListener("click", () => {
-    history.replaceState(null, "", location.pathname);
-    location.reload();
-  });
+  document.getElementById("signOutBtn").addEventListener("click", () => { signOut(); });
 
   boot();
 })();
