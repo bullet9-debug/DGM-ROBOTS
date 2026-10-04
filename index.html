@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Field Diary (Team)</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -386,6 +386,15 @@
     .rail-foot { margin-top: 0; flex-direction: row; }
     .day-lanes { grid-template-columns: 1fr; }
     .install-grid { grid-template-columns: 1fr; }
+    /* The top bar was the one thing this breakpoint never touched, so on a phone
+       .topbar-left could not reflow, .period-label held itself to 190px, and
+       .view-switch clipped the overflow - which put the Setup tab off the edge
+       of the screen with no way to reach it. Let both halves wrap instead. */
+    .topbar { padding: 12px 14px; gap: 10px; justify-content: flex-start; }
+    .topbar-left { flex-wrap: wrap; gap: 10px; }
+    .period-label { min-width: 0; font-size: 16px; }
+    .view-switch { flex-wrap: wrap; }
+    .view-switch button { padding: 6px 8px; }
   }
   @media print {
     .rail, .topbar, .chase-banner, .modal-actions, #overlay, #loginGate, #requestOverlay, #toast { display: none !important; }
@@ -424,6 +433,11 @@
         <label for="travelBuffer">Default travel buffer (min)</label>
         <input id="travelBuffer" type="number" step="5" min="0">
       </div>
+      <div class="field" style="margin:8px 0 0;">
+        <label for="retentionDays">Delete invoiced / approved jobs after (days)</label>
+        <input id="retentionDays" type="number" step="1" min="0">
+        <div style="font-size:11px;color:var(--ink-soft);margin-top:3px;">0 = keep forever. Applies only to jobs in the Invoiced box.</div>
+      </div>
     </div>
 
     <div class="rail-foot">
@@ -452,8 +466,8 @@
           <button data-view="week">Week</button>
           <button data-view="day">Day</button>
           <button data-view="bays">Workshop</button>
-          <button data-view="mileage">Mileage</button>
-          <button data-view="followup">Follow-up<span id="followupBadge" class="nav-badge" style="display:none;"></span></button>
+          <button data-view="mileage" id="mileageTabBtn">Mileage</button>
+          <button data-view="followup" id="followupTabBtn">Follow-up<span id="followupBadge" class="nav-badge" style="display:none;"></span></button>
           <button data-view="requests" id="requestsTabBtn" style="display:none;">Requests<span id="requestsBadge" class="nav-badge" style="display:none;"></span></button>
           <button data-view="setup" id="setupTabBtn" style="display:none;">Setup</button>
         </div>
@@ -753,6 +767,124 @@
   // ====== CONFIGURE THESE TWO VALUES from your Supabase project (Settings -> API) ======
   const SUPABASE_URL = "https://jejzwjtydmrrabxyyaol.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Implanp3anR5ZG1ycmFieHl5YW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4MDU1NjgsImV4cCI6MjEwNTM4MTU2OH0.Mt00WPuDTMcZN7hzB8Hqrc_VwAHrNDiwVnut8IAhf0M";
+  // =======================================================================================
+
+
+  // ====== DEMO MODE ======================================================================
+  // Lets you click through the whole app with an in-browser fake database: no Supabase,
+  // no email, nothing saved (a refresh resets it). Set ALLOW_DEMO = false before you
+  // deploy for real and none of this can be reached.
+  const ALLOW_DEMO = false;
+  const DEMO = {
+    allowed: ALLOW_DEMO,
+    // ?demo=1 forces it on, ?demo=0 forces it off. The opt-out is what lets the
+    // test harness load the page from file:// without being taken over by this.
+    auto: () => ALLOW_DEMO && !/[?&]demo=0(&|$)/.test(location.search)
+      && (location.protocol === "file:" || /[?&]demo(=1|&|$)/.test(location.search)),
+    roles: [
+      { label: "Office (admin)", email: "office@demo.test" },
+      { label: "Technician", email: "tech1@demo.test" },
+      { label: "Viewer", email: "viewer@demo.test" }
+    ]
+  };
+  function makeDemoClient(userEmail) {
+    const iso = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+    let seq = 100;
+    const gid = () => "demo-" + (++seq);
+    const job = (o) => Object.assign({ id: gid(), job_number: null, start_time: null, duration_mins: 60, travel_mins: 0,
+      apprentice: false, customer: null, customer_email: null, address: null, mileage_miles: null, notes: null, make: null,
+      model: null, serial_number: null, warranty: false, attended: false, status: "planned", install_details: null,
+      workshop_bay: null, linked_job_id: null, link_role: null, mileage_mode: "chain", mileage_override: null,
+      distance_source: null, distance_error: null, follow_up_on: null, handover_signed: false, invoiced_at: null }, o);
+    const db = {
+      lanes: FALLBACK_LANES.map(l => ({ ...l })),
+      techs: [
+        { id: "office", name: "Office", access_code: "ADMIN1", lane_id: null, is_admin: true, email: "office@demo.test" },
+        { id: "tech1", name: "Tech 1", access_code: "T1CODE", lane_id: "tech1", is_admin: false, email: "tech1@demo.test" },
+        { id: "tech2", name: "Tech 2", access_code: "T2CODE", lane_id: "tech2", is_admin: false, email: "tech2@demo.test" },
+        { id: "viewer1", name: "Viewer", access_code: "V-DEMO12", lane_id: null, is_admin: false, email: "viewer@demo.test" }
+      ],
+      bays: [{ id: "bay1", name: "Bay 1", sort_order: 1 }, { id: "bay2", name: "Bay 2", sort_order: 2 }, { id: "bay3", name: "Bay 3", sort_order: 3 }],
+      jobs: [
+        job({ date: iso(0), start_time: "08:30:00", duration_mins: 180, travel_mins: 30, lane_id: "tech1", type: "install", customer: "A. Sample", address: "1 Example Road, Torquay TQ1 1AA", make: "Husqvarna", model: "Automower 450X", status: "confirmed" }),
+        job({ date: iso(0), start_time: "13:00:00", duration_mins: 60, travel_mins: 20, lane_id: "tech1", type: "site_visit", customer: "B. Demo", address: "2 Test Lane, Paignton TQ3 2BB", notes: "Blade noise" }),
+        job({ date: iso(1), start_time: "09:00:00", duration_mins: 240, lane_id: "tech2", type: "install", customer: "C. Placeholder", address: "3 Mock Close, Newton Abbot TQ12 3CC" }),
+        job({ date: iso(0), start_time: "09:00:00", duration_mins: 240, lane_id: "workshop", type: "workshop", customer: "D. Example", make: "Stihl", model: "MS 261", workshop_bay: "bay1", warranty: true }),
+        job({ date: iso(-3), start_time: "09:00:00", lane_id: "tech1", type: "site_visit", customer: "G. Done", attended: true }),
+        job({ date: iso(-6), start_time: "11:00:00", lane_id: "workshop", type: "workshop", customer: "H. Warranty", warranty: true, attended: true, invoiced_at: new Date(Date.now() - 12 * 864e5).toISOString() }),
+        job({ date: iso(2), start_time: "10:00:00", duration_mins: 90, lane_id: "tech1", type: "fetch", customer: "E. Fake", address: "4 Pretend Way, Brixham TQ5 4DD" })
+      ],
+      app_settings: [{ key: "invoiced_retention_days", value: "30" }],
+      job_requests: [{ id: "req1", created_at: new Date().toISOString(), requested_by: "Tech 2", customer: "F. Request", type: "site_visit", notes: "Customer says it won't dock", status: "pending" }]
+    };
+    const noop = () => {};
+    const listeners = [];
+    const fire = (table) => listeners.filter(l => l.table === table).forEach(l => setTimeout(l.cb, 0));
+
+    function query(table) {
+      const q = { op: "select", filters: [], orders: [], lim: null, payload: null, wantRows: false, one: false };
+      const api = {
+        select(cols) { if (q.op === "select") q.cols = cols; else q.wantRows = true; return api; },
+        insert(p) { q.op = "insert"; q.payload = p; return api; },
+        update(p) { q.op = "update"; q.payload = p; return api; },
+        delete() { q.op = "delete"; return api; },
+        eq(c, v) { q.filters.push(r => r[c] === v); return api; },
+        neq(c, v) { q.filters.push(r => r[c] !== v); return api; },
+        order(c, o) { q.orders.push([c, !(o && o.ascending === false)]); return api; },
+        limit(n) { q.lim = n; return api; },
+        maybeSingle() { q.one = true; return api; },
+        then(res, rej) { return Promise.resolve(run()).then(res, rej); }
+      };
+      function run() {
+        const rows = db[table];
+        const match = () => rows.filter(r => q.filters.every(f => f(r)));
+        if (q.op === "insert") {
+          const items = (Array.isArray(q.payload) ? q.payload : [q.payload]).map(x => {
+            const row = { ...x };
+            if (!row.id) row.id = gid();
+            if (table === "job_requests" && !row.created_at) row.created_at = new Date().toISOString();
+            return row;
+          });
+          for (const it of items) {
+            if (table === "techs" && rows.some(r => r.id === it.id)) return { data: null, error: { message: "duplicate key value violates unique constraint" } };
+          }
+          rows.push(...items); fire(table);
+          return { data: q.wantRows ? items : null, error: null };
+        }
+        if (q.op === "update") { const m = match(); m.forEach(r => Object.assign(r, q.payload)); fire(table); return { data: q.wantRows ? m : null, error: null }; }
+        if (q.op === "delete") { const m = match(); db[table] = rows.filter(r => !m.includes(r)); fire(table); return { data: null, error: null }; }
+        let out = match().map(r => ({ ...r }));
+        q.orders.slice().reverse().forEach(([c, asc]) => out.sort((a, b) => (a[c] > b[c] ? 1 : a[c] < b[c] ? -1 : 0) * (asc ? 1 : -1)));
+        if (q.lim != null) out = out.slice(0, q.lim);
+        if (q.one) return { data: out[0] || null, error: null };
+        return { data: out, error: null };
+      }
+      return api;
+    }
+    const chan = { on(_e, f, cb) { listeners.push({ table: f.table, cb }); return chan; }, subscribe() { return chan; } };
+    return {
+      isDemo: true,
+      from: query,
+      channel: () => chan,
+      auth: {
+        getSession: async () => ({ data: { session: { user: { email: userEmail } } }, error: null }),
+        signOut: async () => ({ error: null }),
+        signInWithOtp: async () => ({ error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: noop } } })
+      }
+    };
+  }
+  function startDemo(email) {
+    sb = makeDemoClient(email);
+    const bar = document.createElement("div");
+    bar.className = "demo-bar";
+    bar.textContent = "DEMO MODE — sample data, nothing is saved. Refresh to reset.";
+    bar.style.cssText = "position:fixed;bottom:0;left:0;right:0;z-index:200;background:#6B5B8E;color:#fff;text-align:center;font:600 12px/1 sans-serif;padding:6px;pointer-events:none;";
+    const old = document.querySelector(".demo-bar");
+    if (old) old.remove();
+    document.body.appendChild(bar);
+    enterApp();
+  }
   // =======================================================================================
 
   const HQ_POSTCODE = "TQ2 7HX"; // used to calculate one-way mileage to job addresses, for invoicing
@@ -1274,7 +1406,9 @@
     workDayEnd: localStorage.getItem("fd.workDayEnd") || "17:00",
     workDayMins: 540,
     travelBuffer: Number(localStorage.getItem("fd.travelBuffer")) || 30,
-    activeLanes: []
+    activeLanes: [],
+    retentionDays: Number(localStorage.getItem("fd.retentionDays") || 30),
+    settingsTable: true
   };
   function recomputeWorkDayMins() {
     const m = timeToMins(state.workDayEnd) - timeToMins(state.workDayStart);
@@ -1283,6 +1417,9 @@
   recomputeWorkDayMins();
 
   let currentView = "month";
+  // Views only the office gets. Both carry write actions, so a technician or a
+  // viewer is kept out of them entirely rather than shown a read-only version.
+  const ADMIN_ONLY_VIEWS = ["mileage", "followup", "requests", "setup"];
   let cursorDate = startOfDay(new Date());
   let modalIsNewJob = true;
   let pendingRequestId = null;   // set when the open job modal was launched from a tech's job request
@@ -1311,7 +1448,8 @@
       distanceSource: r.distance_source || null,
       distanceError: r.distance_error || null,
       followUpOn: r.follow_up_on || null,
-      handoverSigned: !!r.handover_signed
+      handoverSigned: !!r.handover_signed,
+      invoicedAt: r.invoiced_at || null
     };
   }
   function appJobToDb(j) {
@@ -1358,6 +1496,7 @@
     document.getElementById("warrantyTimerBtn").textContent = job.warrantyRunningSince ? "Stop" : "Start";
   }
   async function toggleTimer(field) {
+    if (viewerBlocked()) return;
     const id = document.getElementById("jobId").value;
     if (!id) return;
     const job = state.jobs.find(j => j.id === id);
@@ -1416,7 +1555,8 @@
     };
   }
   async function signIn(email) {
-    const opts = SIGN_IN_RETURN_TO ? { emailRedirectTo: SIGN_IN_RETURN_TO } : {};
+    const opts = { shouldCreateUser: false };
+    if (SIGN_IN_RETURN_TO) opts.emailRedirectTo = SIGN_IN_RETURN_TO;
     const sent = await sb.auth.signInWithOtp({ email: String(email || "").trim(), options: opts });
     if (sent.error) throw sent.error;
     return sent;
@@ -1424,10 +1564,40 @@
   async function signOut() {
     try { await sb.auth.signOut(); } catch (e) { /* the local session is cleared anyway */ }
     session = null;
+    if (sb && sb.isDemo) {
+      // The demo holds its data in the page, so there is no server session to
+      // end, and DEMO.auto() is still true after a reload - a plain reload
+      // would drop straight back into the office and Sign out would look broken.
+      // Leave a note for boot() so it opens the role picker instead.
+      try {
+        sessionStorage.setItem("fdDemoSignedOut", "1");
+      } catch (e) {
+        // Storage is unavailable, so a reload cannot be told apart from a
+        // normal one. Stay on the page and show the roles directly.
+        const bar = document.querySelector(".demo-bar");
+        if (bar) bar.remove();
+        showLoginForm("");
+        return;
+      }
+    }
     location.reload();
   }
 
+  // Signing out of the demo has to land somewhere the roles can be picked again.
+  // Without this the reload re-enters the office, because DEMO.auto() is still
+  // true on a file:// or ?demo=1 address, and the role picker is unreachable.
+  function demoJustSignedOut() {
+    try {
+      if (!sessionStorage.getItem("fdDemoSignedOut")) return false;
+      sessionStorage.removeItem("fdDemoSignedOut");
+      return true;
+    } catch (e) { return false; }
+  }
   async function boot() {
+    if (DEMO.auto()) {
+      if (demoJustSignedOut()) { showLoginForm(""); return; }
+      startDemo(DEMO.roles[0].email); return;
+    }
     if (SUPABASE_URL.startsWith("YOUR_") || SUPABASE_ANON_KEY.startsWith("YOUR_")) {
       document.getElementById("loginGate").innerHTML = `
         <div class="modal" style="max-width:420px;">
@@ -1446,8 +1616,15 @@
     });
 
     if (SIGN_IN_RETURN_TO) {
-      // A shared link should not leave a token sitting in the address bar.
-      if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+      // supabase-js removes a valid token from the address bar itself. An expired
+      // or already-used link comes back as #error_description=..., so show that.
+      const h = new URLSearchParams(location.hash.replace(/^#/, ""));
+      if (h.get("error_description")) {
+        showLoginForm(/expired|invalid/i.test(h.get("error_description"))
+          ? "That sign-in link has expired or was already used. Enter your email for a fresh one."
+          : h.get("error_description").replace(/\+/g, " "));
+        history.replaceState(null, "", location.pathname + location.search);
+      }
     } else {
       showLoginForm("Sign-in needs the app on a web address, not opened from a file. Ask the office for the link.", true);
     }
@@ -1499,10 +1676,15 @@
         </div>
         <div id="loginError" style="color:var(--danger); font-size:12px; margin-bottom:10px; ${errorMsg?"":"display:none;"}">${escapeHtml(errorMsg||"")}</div>
         <button class="primary" id="loginBtn" style="width:100%;" ${fatal?"disabled":""}>${fatal?"Sign-in is not available yet":"Email me a sign-in link"}</button>
+        ${DEMO.allowed ? `<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line,#ddd);font-size:12px;color:var(--ink-soft);">
+          <div style="margin-bottom:6px;">Just looking? Try the demo (sample data, nothing is saved):</div>
+          ${DEMO.roles.map(r => `<button type="button" data-demo="${r.email}" style="margin:0 6px 6px 0;">${r.label}</button>`).join("")}
+        </div>` : ""}
         <p class="link-sent" style="display:none; font-size:12.5px; color:var(--green); margin:12px 0 0;">
           Check your inbox. The link signs you straight in, and it stops working once you've used it.
         </p>
       </div>`;
+    gate.querySelectorAll("[data-demo]").forEach(b => b.addEventListener("click", () => startDemo(b.dataset.demo)));
     if (fatal) return;
     const submit = async () => {
       const email = document.getElementById("loginEmail").value.trim();
@@ -1553,6 +1735,12 @@
     document.getElementById("requestJobBtn").style.display = session.isAdmin ? "none" : "";
     document.getElementById("requestsTabBtn").style.display = session.isAdmin ? "" : "none";
     document.getElementById("setupTabBtn").style.display = session.isAdmin ? "" : "none";
+    // Mileage and Follow-up both carry write actions, so they are office-only for
+    // now. Hiding the tab is not the lock - the guard in setView is - but a hidden
+    // tab nobody can click back into is the first half of doing it properly.
+    document.getElementById("mileageTabBtn").style.display = session.isAdmin ? "" : "none";
+    document.getElementById("followupTabBtn").style.display = session.isAdmin ? "" : "none";
+    if (!session.isAdmin && ADMIN_ONLY_VIEWS.includes(currentView)) currentView = "day";
 
     await probeCapabilities();
     await loadLanes();
@@ -1561,6 +1749,8 @@
     await loadBays();
     await loadTechs();
     await rollForwardWorkshopJobs();
+    await loadSettings();
+    await purgeInvoiced();
     subscribeRealtime();
     render();
   }
@@ -1716,11 +1906,17 @@
     document.getElementById("workDayStart").value = state.workDayStart;
     document.getElementById("workDayEnd").value = state.workDayEnd;
     document.getElementById("travelBuffer").value = state.travelBuffer;
+    document.getElementById("retentionDays").value = state.retentionDays;
   }
 
   // ---------- Top bar ----------
   function setView(v) {
     if (!v || v === currentView) return;
+    // Hiding the tab is cosmetic. This is the part that actually refuses.
+    if (!session.isAdmin && ADMIN_ONLY_VIEWS.includes(v)) {
+      notify("That's an office view. Ask the office if you need something from it.", 5000);
+      return;
+    }
     currentView = v;
     render();
   }
@@ -1854,10 +2050,12 @@
     let html = "";
     if (past) {
       const onDay = pastJobs().filter(j => j.date === dateStr);
+      // Follow-up is office-only now, so don't offer a link they cannot follow.
+      const where = session.isAdmin ? ` in <a href="#" data-goto-followup>Follow-up</a>` : " off the diary";
       html += `<div class="past-notice">${new Date(cursorDate).toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"})} has passed. `
         + (onDay.length
-            ? `${onDay.length} job${onDay.length===1?"":"s"} from this day ${onDay.length===1?"is":"are"} now in <a href="#" data-goto-followup>Follow-up</a>.`
-            : `Its jobs are in <a href="#" data-goto-followup>Follow-up</a>.`);
+            ? `${onDay.length} job${onDay.length===1?"":"s"} from this day ${onDay.length===1?"is":"are"} now${where}.`
+            : `Its jobs are${where}.`);
       html += `</div>`;
     }
     html += `<div class="day-lanes">`;
@@ -1912,14 +2110,80 @@
   // the Follow-up queues (to invoice / needs rebooking), so they're left out of
   // month, week and day to stop them cluttering the plan.
   function diaryJobsOn(dateStr) { return isPastDate(dateStr) ? [] : jobsOn(dateStr); }
-  function invoiceQueue() { return pastJobs().filter(j => j.attended); }
-  function rebookQueue() { return pastJobs().filter(j => !j.attended); }
+  function invoiceQueue() { return pastJobs().filter(j => j.attended && !j.invoicedAt); }
+  function rebookQueue() { return pastJobs().filter(j => !j.attended && !j.invoicedAt); }
+  function doneQueue() { return state.jobs.filter(j => j.invoicedAt); }
+
+  // How long invoiced / warranty-approved jobs are kept. Held in the app_settings
+  // table so every browser agrees; falls back to this browser if that table isn't there yet.
+  async function loadSettings() {
+    const { data, error } = await sb.from("app_settings").select("*").eq("key", "invoiced_retention_days").maybeSingle();
+    if (error) { state.settingsTable = false; return; }
+    state.settingsTable = true;
+    if (data && data.value !== null && data.value !== "" && !isNaN(Number(data.value))) state.retentionDays = Number(data.value);
+  }
+  async function saveRetention(days) {
+    state.retentionDays = days;
+    localStorage.setItem("fd.retentionDays", String(days));
+    if (!state.settingsTable) { notify("Saved on this browser only — run supabase-invoiced.sql so every device shares it.", 8000); return; }
+    const upd = await sb.from("app_settings").update({ value: String(days) }).eq("key", "invoiced_retention_days").select();
+    if (!upd.error && upd.data && upd.data.length) return;
+    const ins = await sb.from("app_settings").insert({ key: "invoiced_retention_days", value: String(days) });
+    if (ins.error) fail("Saving the retention period", ins.error);
+  }
+  function daysLeft(j) {
+    if (!state.retentionDays) return null;
+    const ms = new Date(j.invoicedAt).getTime() + state.retentionDays * 864e5 - Date.now();
+    return Math.max(0, Math.ceil(ms / 864e5));
+  }
+  async function purgeInvoiced() {
+    if (!session.isAdmin || !state.retentionDays) return;
+    const cutoff = Date.now() - state.retentionDays * 864e5;
+    const old = doneQueue().filter(j => new Date(j.invoicedAt).getTime() < cutoff);
+    for (const j of old) await sb.from("jobs").delete().eq("id", j.id);
+    if (old.length) { await loadJobs(); notify(`${old.length} invoiced job${old.length === 1 ? "" : "s"} older than ${state.retentionDays} days removed.`, 8000); }
+  }
+  async function setInvoiced(id, on) {
+    const { error } = await sb.from("jobs").update({ invoiced_at: on ? new Date().toISOString() : null }).eq("id", id);
+    if (error) {
+      const missing = /invoiced_at/i.test(error.message || "");
+      alert(missing ? "The jobs table has no invoiced_at column yet. Run supabase-invoiced.sql in the Supabase SQL editor first." : "Couldn't update that job: " + error.message);
+      return;
+    }
+    await loadJobs();
+    render();
+  }
   function jobsNeedingChase() {
     const todayStr = fmtISODate(startOfDay(new Date()));
     const cutoff = fmtISODate(addDays(startOfDay(new Date()), 2));
     return state.jobs.filter(j => j.date && j.date >= todayStr && j.date <= cutoff && j.status !== "confirmed");
   }
 
+  // A warranty job is an approval, not an invoice, so it gets a deliberate stop
+  // before it lands in the box. The wording spells out what the approval means,
+  // because the box is on a deletion clock.
+  function confirmWarrantyApproval(j) {
+    const ref = [j.jobNumber ? `job ${j.jobNumber}` : "", j.customer || ""].filter(Boolean).join(" - ");
+    const gone = state.retentionDays
+      ? `It will be deleted from this app ${state.retentionDays} day${state.retentionDays === 1 ? "" : "s"} from now. `
+      : "It will be kept in this app. ";
+    return confirm(
+      `Approve this warranty job${ref ? `:\n\n${ref}` : ""}?\n\n` +
+      `It moves out of Needs rebooking into Invoiced / warranty approved. ` +
+      `Make sure the details are on Evopos first, because ${gone}`
+    );
+  }
+  function followUpAction(j) {
+    if (j.invoicedAt) {
+      const left = daysLeft(j);
+      return `<div class="job-meta" style="margin-top:4px;">${j.warranty ? "Approved" : "Invoiced"} ${escapeHtml(fmtUKDate(j.invoicedAt.slice(0,10)))}`
+        + (left === null ? " · kept" : ` · removed in ${left} day${left === 1 ? "" : "s"}`) + `</div>`
+        + (session.isAdmin ? `<button class="ghost" style="margin-top:4px;" data-undo-invoice="${j.id}">Move back</button>` : "");
+    }
+    if (j.attended && session.isAdmin)
+      return `<button class="ghost" style="margin-top:4px;" data-mark-invoice="${j.id}" data-warranty="${j.warranty ? "1" : ""}">${j.warranty ? "Warranty approved" : "Mark invoiced"}</button>`;
+    return "";
+  }
   function followUpJobRow(j) {
     const lane = laneById(j.lane) || { color: "#999", name: j.lane };
     const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
@@ -1928,12 +2192,14 @@
       <div class="job-cust">${num}${escapeHtml(j.customer||typeLabel(j.type))}${confirmedTick(j)}${warrantyTag(j)}</div>
       <div class="job-meta">${escapeHtml(lane.name)} · ${typeLabel(j.type)}</div>
       <span class="status-pill status-${j.status||"planned"}" style="margin-top:4px;">${statusLabel(j.status)}</span>
+      ${followUpAction(j)}
     </div>`;
   }
 
   function renderFollowUp() {
     const el = document.getElementById("content");
     const invoiceJobs = invoiceQueue().sort((a,b) => b.date.localeCompare(a.date) || (b.time||"").localeCompare(a.time||""));
+    const doneJobs = doneQueue().sort((a,b) => b.invoicedAt.localeCompare(a.invoicedAt));
     const rebookJobs = rebookQueue().sort((a,b) => b.date.localeCompare(a.date) || (b.time||"").localeCompare(a.time||""));
     let html = `<div class="day-lanes">
       <div class="day-lane">
@@ -1944,9 +2210,21 @@
         <div class="day-lane-head"><strong style="flex:1;">Needs rebooking</strong><span class="cap-pct">${rebookJobs.length} job${rebookJobs.length===1?"":"s"}</span></div>
         <div class="day-lane-body">${rebookJobs.length ? rebookJobs.map(followUpJobRow).join("") : `<div class="empty-hint">Nothing overdue</div>`}</div>
       </div>
+      <div class="day-lane">
+        <div class="day-lane-head"><strong style="flex:1;">Invoiced / warranty approved</strong><span class="cap-pct">${doneJobs.length} job${doneJobs.length===1?"":"s"}</span></div>
+        <div class="day-lane-body">${doneJobs.length ? doneJobs.map(followUpJobRow).join("") : `<div class="empty-hint">Nothing here yet</div>`}</div>
+      </div>
     </div>`;
     el.innerHTML = html;
     el.querySelectorAll(".job-block").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
+    el.querySelectorAll("[data-mark-invoice]").forEach(b => b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = b.dataset.markInvoice;
+      const job = state.jobs.find(j => j.id === id);
+      if (job && job.warranty && !confirmWarrantyApproval(job)) return;
+      setInvoiced(id, true);
+    }));
+    el.querySelectorAll("[data-undo-invoice]").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); setInvoiced(b.dataset.undoInvoice, false); }));
   }
 
   // ---------- Workshop bays ----------
@@ -2000,7 +2278,10 @@
           html += `</td>`;
         });
         html += `<td class="num">${totals(name) ? escapeHtml(formatDuration(totals(name), state.workDayMins)) : "—"}</td>`;
-        html += `<td>${session.isAdmin ? `<button class="ghost" data-rename-bay="${escapeAttr(name)}" style="font-size:11px; padding:3px 7px;">Rename</button>` : ""}</td></tr>`;
+        html += `<td>${session.isAdmin ? `<div style="display:flex; gap:6px; justify-content:flex-end;">
+          <button class="ghost" data-rename-bay="${escapeAttr(name)}" style="font-size:11px; padding:3px 7px;">Rename</button>
+          <button class="ghost" data-remove-bay="${escapeAttr(name)}" style="font-size:11px; padding:3px 7px;">Remove</button>
+        </div>` : ""}</td></tr>`;
       });
       html += `</tbody></table></div>`;
       html += `<div class="day-total-line">Totals count attended jobs only. Change a job's bay from the job screen.</div>`;
@@ -2016,6 +2297,7 @@
       recalc.disabled = false; recalc.textContent = "Recalculate mileage";
     });
     el.querySelectorAll("[data-rename-bay]").forEach(b => b.addEventListener("click", async () => {
+      if (viewerBlocked()) return;
       const oldName = b.getAttribute("data-rename-bay");
       const next = (prompt("Rename bay", oldName) || "").trim();
       if (!next || next === oldName) return;
@@ -2036,8 +2318,12 @@
       await Promise.all([loadBays(), loadJobs()]);
       render();
     }));
+    el.querySelectorAll("[data-remove-bay]").forEach(b => b.addEventListener("click", async () => {
+      await removeBay(b.getAttribute("data-remove-bay"));
+    }));
   }
   async function addBay() {
+    if (viewerBlocked()) return;
     const name = prompt("Name for the new bay (e.g. Bay 4)");
     if (!name) return;
     const nextSort = state.bays.reduce((m, b) => Math.max(m, Number(b.sort_order) || 0), 0) + 1;
@@ -2045,6 +2331,58 @@
     if (error) { alert("Couldn't add that bay: " + error.message); return; }
     await loadBays();
     render();
+  }
+
+  // A bay is not a row in isolation. jobs.workshop_bay stores the bay NAME as
+  // text, and bayNames() adds any name a job is using that has no bays row, so
+  // removing the row alone would leave the name on the grid as a ghost.
+  function removeBay(name) {
+    if (viewerBlocked()) return;
+    const inBay = state.jobs.filter(j => j.workshopBay === name);
+    const open = inBay.filter(j => !j.attended);
+
+    if (open.length) {
+      const listed = open.map(j => {
+        const ref = j.jobNumber ? "#" + j.jobNumber : typeLabel(j.type);
+        return "  " + ref + (j.customer ? " - " + j.customer : "") + " on " + fmtUKDate(j.date);
+      });
+      alert('"' + name + '" still has ' + open.length + " job" + (open.length === 1 ? "" : "s")
+        + " on it that " + (open.length === 1 ? "has" : "have") + " not been attended yet:\n\n"
+        + listed.join("\n")
+        + "\n\nMove or finish " + (open.length === 1 ? "it" : "them") + " first, then the bay can be removed.");
+      return Promise.resolve();
+    }
+
+    const done = inBay.length;
+    const warn = done
+      ? "\n\n" + done + " finished job" + (done === 1 ? "" : "s") + " will lose the bay. The jobs stay, they just will not show in the grid."
+      : "\n\nIt is empty, so this just takes the bay off the grid.";
+    if (!confirm('Remove the bay "' + name + '"?' + warn)) return Promise.resolve();
+
+    return (async () => {
+      // Jobs first. If this write fails nothing is lost and we stop. The other
+      // way round, jobs left pointing at a bay that no longer exists would put
+      // it straight back on the grid as a ghost, and the delete would look like
+      // it had never happened.
+      if (done && capCol("workshop_bay")) {
+        const cleared = await sb.from("jobs").update({ workshop_bay: null }).eq("workshop_bay", name);
+        if (cleared.error) {
+          alert("Couldn't clear the jobs off that bay, so nothing was removed: " + cleared.error.message);
+          return;
+        }
+      }
+      // Only the row has to be deleted by hand. A bay that exists purely
+      // because a job names it has no row to take away, and the update above is
+      // what stops the name coming back as a ghost.
+      const row = state.bays.find(x => x.name === name);
+      if (row) {
+        const { error } = await sb.from("bays").delete().eq("id", row.id);
+        if (error) { alert("Couldn't remove that bay: " + error.message); return; }
+      }
+      await Promise.all([loadBays(), loadJobs()]);
+      render();
+      notify('"' + name + '" removed.', 5000);
+    })();
   }
 
   // ---------- Mileage ----------
@@ -2203,7 +2541,7 @@
       warranty: f.warranty, attended: false, status: "planned", apprentice: false,
       linkRole: "workshop", linkedJobId: f.id, mileageMode: "chain", installDetails: Object.assign({}, f.installDetails)
     };
-    const { data, error } = await sb.from("jobs").insert(appJobToDb(w));
+    const { data, error } = await sb.from("jobs").insert(appJobToDb(w)).select();
     if (error) { alert("Couldn't book the workshop job: " + error.message); return; }
     await linkJobs(f.id, (data && data[0] && data[0].id) || null, "collect");
     await loadJobs();
@@ -2489,7 +2827,7 @@
       // techs.id is a text primary key, so it has to be sent.
       const code = randomAccessCode(false);
       const techId = state.techs.some(t => t.id === id) ? newTechId(name) : id;
-      const email = await askForEmail(name, true, techId);
+      let email = await askForEmail(name, true, techId);
       if (email === null) { email = ""; }
       const ins = await sb.from("techs").insert({ id: techId, name, access_code: code, lane_id: id, is_admin: false, email: email || null });
       if (ins.error) showSetupError(`${name} was added to the diary, but their login was not`, ins.error);
@@ -2850,8 +3188,10 @@
     if (det) {
       det.style.display = showInstall ? "" : "none";
       // Open it by default for an install, but never fight the user once they've
-      // opened or closed it themselves.
-      if (showInstall && det.dataset.touched !== "1") det.open = true;
+      // opened or closed it themselves. A viewer never gets it opened for them:
+      // it is a wall of locked fields spanning most of the form, and they have no
+      // reason to be looking at it.
+      if (showInstall && det.dataset.touched !== "1") det.open = viewerNow() ? false : !modalIsNewJob;
     }
     if (wrap) wrap.style.display = showInstall ? "" : "none";
   }
@@ -2867,9 +3207,18 @@
     else { link.style.display = "none"; }
   }
 
+  // A viewer's session is read-only. The layout decisions use this; the write
+  // paths use viewerBlocked(), because a hidden button is not a lock.
+  function viewerNow() { return !!(session && session.isViewer); }
+  function viewerBlocked() {
+    if (!viewerNow()) return false;
+    notify("A viewer can't change anything here. Use \"Request job\" and the office will book it.", 6000);
+    return true;
+  }
+
   function setModalReadOnly(isAdmin) {
     // A viewer reads jobs and nothing more: no field editable, no save, no delete.
-    const viewer = !!(session && session.isViewer);
+    const viewer = viewerNow();
     const techEditable = viewer ? new Set() : new Set(["f_notes", "f_attended", "f_installwrap"]); // fields techs can still edit on an existing job
     ["f_jobnum","f_date","f_time","f_travel","f_duration","f_lane","f_type","f_customer","f_customeremail","f_address","f_notes","f_status","f_apprentice","f_make","f_model","f_serial","f_warranty","f_attended",
       "f_mileageMode","f_mileageOverride","f_bay","f_linkrole"]
@@ -2877,9 +3226,17 @@
     document.getElementById("saveJobBtn").style.display = viewer ? "none" : "";
     document.getElementById("saveJobBtn").textContent = isAdmin ? "Save job" : "Save notes";
     document.getElementById("deleteJobBtn").style.display = isAdmin ? "inline-block" : "none";
-    // A technician can still record what they did on the machine, so the install
-    // detail boxes stay editable even though the scheduling fields are locked.
-    if (!isAdmin && !viewer) document.querySelectorAll("#installWrap input, #installWrap select").forEach(el => { el.disabled = false; });
+    // The install boxes are built by renderInstallFields with no disabled
+    // attribute, so they arrive open. A technician can still record what they did
+    // on the machine, so the install detail boxes stay editable even though the
+    // scheduling fields are locked. A viewer must not touch them at all - they
+    // were the one set of fields nothing was locking down.
+    document.querySelectorAll("#installWrap input, #installWrap select").forEach(el => { el.disabled = viewer; });
+    // Both of these write to the database rather than just the form. This is the
+    // app's only "New bay" button, so it is a viewer restriction only - taking it
+    // from technicians as well would be a change nobody asked for.
+    if (viewer) document.getElementById("timerRow").style.display = "none";
+    document.getElementById("f_addBayBtn").style.display = viewer ? "none" : "";
     const note = document.getElementById("viewerJobNote");
     if (note) note.style.display = viewer ? "" : "none";
   }
@@ -2892,6 +3249,7 @@
     const overlay = document.getElementById("overlay");
     const job = jobId ? state.jobs.find(j => j.id === jobId) : null;
     modalIsNewJob = !job;
+    ["moreDetails", "installDetails"].forEach(id => { const d = document.getElementById(id); if (d) delete d.dataset.touched; });
     document.getElementById("modalTitle").textContent = job ? "Job details" : "New job";
     document.getElementById("jobId").value = job ? job.id : "";
     document.getElementById("f_jobnum").value = job ? (job.jobNumber||"") : "";
@@ -2953,14 +3311,21 @@
     const more = document.getElementById("moreDetails");
     if (more) {
       if (more.dataset.touched !== "1") {
-        // Only genuine text/data presence should pull the section open. A travel
-        // time of 0 is a normal value, not a reason to force it open for every job.
-        const hasHiddenData = job && (
-          !!(job.notes || job.customerEmail || job.make || job.model || job.serial || job.warranty)
-          || !!job.apprentice
-          || !!(job.installDetails && Object.keys(job.installDetails || {}).length)
-        );
-        more.open = !!hasHiddenData;
+        // A viewer gets it collapsed regardless. "It has data in it" is a reason
+        // to open the section for someone who can act on the data; a viewer can
+        // act on none of it, so opening it just buries the few fields they might
+        // want. They can still click it open themselves.
+        if (viewerNow()) { more.open = false; }
+        else {
+          // Only genuine text/data presence should pull the section open. A travel
+          // time of 0 is a normal value, not a reason to force it open for every job.
+          const hasHiddenData = job && (
+            !!(job.notes || job.customerEmail || job.make || job.model || job.serial || job.warranty)
+            || !!job.apprentice
+            || !!(job.installDetails && Object.keys(job.installDetails || {}).length)
+          );
+          more.open = !!hasHiddenData;
+        }
       }
     }
     document.getElementById("printCardBtn").style.display = job && capCol("install_details") ? "inline-block" : "none";
@@ -2978,7 +3343,8 @@
   // Once the user opens or closes a collapsed section, stop auto-opening it.
   ["moreDetails", "installDetails"].forEach(id => {
     const det = document.getElementById(id);
-    if (det) det.addEventListener("toggle", () => { det.dataset.touched = "1"; });
+    const sum = det && det.querySelector("summary");
+    if (sum) sum.addEventListener("click", () => { det.dataset.touched = "1"; });
   });
   document.getElementById("f_lane").addEventListener("change", () => { updateApprenticeVisibility(); populateBaySelect(); debouncedUpdateMileage(); });
   document.getElementById("f_address").addEventListener("input", updateMapsLink);
@@ -3160,6 +3526,14 @@
   document.getElementById("workDayEnd").addEventListener("change", (e) => { state.workDayEnd = e.target.value || "17:00"; localStorage.setItem("fd.workDayEnd", state.workDayEnd); recomputeWorkDayMins(); render(); });
   document.getElementById("travelBuffer").addEventListener("change", (e) => { state.travelBuffer = Number(e.target.value)||0; localStorage.setItem("fd.travelBuffer", state.travelBuffer); });
 
+  document.getElementById("retentionDays").addEventListener("change", async (e) => {
+    const n = Math.max(0, Math.floor(Number(e.target.value) || 0));
+    e.target.value = n;
+    if (n && !confirm(`Invoiced / approved jobs will be permanently deleted ${n} day${n === 1 ? "" : "s"} after they are marked. Their mileage entries go with them. Continue?`)) { e.target.value = state.retentionDays; return; }
+    await saveRetention(n);
+    await purgeInvoiced();
+    render();
+  });
   document.getElementById("exportBtn").addEventListener("click", () => {
     const blob = new Blob([JSON.stringify({ lanes: state.lanes, bays: state.bays, jobs: state.jobs }, null, 2)], {type:"application/json"});
     const a = document.createElement("a");
