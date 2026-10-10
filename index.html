@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Field Diary (Team)</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -242,10 +242,10 @@
   /* minmax(0, 1fr) on both grids, or a long job name stretches one column and
      the day names stop lining up with the days underneath them. */
   .month-head {
-    position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+    position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
     background: var(--paper-raised); gap: 1px;
   }
-  .month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--line); }
+  .month-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--line); }
   .month-dow { font-size: 11px; color: var(--ink-soft); text-align: left; padding: 6px 8px; font-weight: 600; }
   .month-cell {
     border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
@@ -311,6 +311,13 @@
 
   /* Day view detail lanes */
   .day-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  /* Sits above the three boxes, not inside them, so it never becomes a grid
+     column of its own at narrow widths. */
+  .fu-filter { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .fu-filter .fu-q { flex: 1 1 190px; min-width: 170px; max-width: 320px; }
+  .fu-filter .fu-lane { flex: 0 1 auto; max-width: 190px; }
+  .fu-filter .fu-count { flex: 0 0 auto; }
+  .fu-filter .fu-clear { flex: 0 0 auto; }
   .day-lane { border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-raised); overflow: hidden; }
   .day-lane-head { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .day-lane-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
@@ -363,6 +370,25 @@
   .modal-actions { display: flex; justify-content: space-between; margin-top: 18px; gap: 8px; }
   .modal-actions .right { display: flex; gap: 8px; }
 
+  /* ===== Search ===== */
+  .modal.search { max-width: 680px; padding: 16px; }
+  .search-bar { display: flex; gap: 8px; align-items: center; }
+  .search-bar input { flex: 1; min-width: 0; font-size: 15px; padding: 10px 12px; }
+  .search-scopes { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .scope-chip { font-size: 11px; padding: 4px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--paper); cursor: pointer; font-weight: 600; color: var(--ink-soft); }
+  .scope-chip:hover { background: var(--paper-raised); }
+  .scope-chip.on { background: var(--green); border-color: var(--green); color: var(--paper-raised); }
+  .search-count { font-size: 11px; color: var(--ink-soft); margin-left: auto; }
+  .search-results { max-height: 54vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .search-results .job-block { border: 1px solid var(--line); border-left-width: 3px; }
+  .search-results .job-block.sel { outline: 2px solid var(--green); outline-offset: 1px; }
+  .search-open-day { font-size: 10px; font-weight: 700; color: var(--green); background: var(--green-soft); padding: 2px 7px; border-radius: 8px; cursor: pointer; }
+  .search-empty { font-size: 13px; color: var(--ink-soft); padding: 22px 6px; text-align: center; }
+  .search-foot { font-size: 11px; color: var(--ink-soft); margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+  .kbd { font-family: ui-monospace, monospace; background: var(--paper-raised); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 10px; }
+  .jump-date { font-size: 12px; padding: 6px 8px; max-width: 150px; }
+  .search-btn { font-size: 15px; padding: 6px 11px; line-height: 1; }
+
   .outlook-box {
     border: 1px dashed var(--line); border-radius: var(--radius); padding: 10px 12px; margin-top: 4px; margin-bottom: 14px;
     background: var(--paper);
@@ -397,7 +423,7 @@
     .view-switch button { padding: 6px 8px; }
   }
   @media print {
-    .rail, .topbar, .chase-banner, .modal-actions, #overlay, #loginGate, #requestOverlay, #toast { display: none !important; }
+    .rail, .topbar, .chase-banner, .modal-actions, #overlay, #loginGate, #requestOverlay, #searchOverlay, #toast { display: none !important; }
     .content { padding: 0; overflow: visible; }
     body { background: #fff; color: #000; }
   }
@@ -442,6 +468,7 @@
 
     <div class="rail-foot">
       <button class="ghost" id="exportBtn">Export backup (.json)</button>
+      <button class="ghost" id="exportCsvBtn">Export jobs (.csv)</button>
       <div id="whoami" style="font-size:12px; color:var(--ink-soft); padding:4px 2px;"></div>
       <button class="ghost" id="signOutBtn" style="display:none;">Sign out</button>
     </div>
@@ -455,6 +482,8 @@
           <button class="ghost" id="todayBtn">Today</button>
           <button class="ghost" id="nextBtn" aria-label="Next">&rarr;</button>
         </div>
+        <input type="date" id="jumpDate" class="jump-date" aria-label="Jump to date" title="Jump to a date">
+        <button class="ghost search-btn" id="searchBtn" aria-label="Search jobs" title="Search jobs (Ctrl+K)">&#128269;</button>
         <div class="period-label" id="periodLabel"></div>
       </div>
       <div style="display:flex; align-items:center; gap:12px;">
@@ -572,22 +601,24 @@
       <input type="text" id="f_customer" placeholder="Customer or site name">
     </div>
 
-    <div class="sub-head" id="mileageHead">Mileage for invoicing</div>
-    <div class="field-row">
-      <div class="field">
-        <label for="f_mileageMode">How is this job driven?</label>
-        <select id="f_mileageMode">
-          <option value="chain">Chained — continue from the previous job</option>
-          <option value="round">Round trip — out and back to the depot</option>
-        </select>
+    <div id="mileageSection">
+      <div class="sub-head" id="mileageHead">Mileage for invoicing</div>
+      <div class="field-row">
+        <div class="field">
+          <label for="f_mileageMode">How is this job driven?</label>
+          <select id="f_mileageMode">
+            <option value="chain">Chained — continue from the previous job</option>
+            <option value="round">Round trip — out and back to the depot</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="f_mileageOverride">Manual override (miles)</label>
+          <input type="number" id="f_mileageOverride" step="0.1" min="0" placeholder="blank = use route">
+          <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Only used if you need to substitute a real odometer reading.</div>
+        </div>
       </div>
-      <div class="field">
-        <label for="f_mileageOverride">Manual override (miles)</label>
-        <input type="number" id="f_mileageOverride" step="0.1" min="0" placeholder="blank = use route">
-        <div style="font-size:11px; color:var(--ink-soft); margin-top:3px;">Only used if you need to substitute a real odometer reading.</div>
-      </div>
+      <div id="distanceIssue" style="display:none; font-size:12px; color:var(--amber); background:var(--amber-soft); border:1px solid var(--amber); border-radius:var(--radius); padding:7px 9px; margin-bottom:10px;"></div>
     </div>
-    <div id="distanceIssue" style="display:none; font-size:12px; color:var(--amber); background:var(--amber-soft); border:1px solid var(--amber); border-radius:var(--radius); padding:7px 9px; margin-bottom:10px;"></div>
 
     <div class="field">
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
@@ -607,7 +638,7 @@
       <summary>More details</summary>
       <div class="collapse-body">
         <div class="field-row">
-          <div class="field">
+          <div class="field" id="f_travelField">
             <label for="f_travel">Travel buffer (min)</label>
             <input type="number" id="f_travel" min="0" step="5">
           </div>
@@ -651,7 +682,7 @@
         </div>
 
         <div class="field-row" id="timerRow" style="display:none;">
-          <div class="field" style="margin-bottom:0;">
+          <div class="field" style="margin-bottom:0;" id="travelTimerField">
             <label>Travel timer</label>
             <div style="display:flex; align-items:center; gap:8px;">
               <span id="travelTimerDisplay" style="font-variant-numeric:tabular-nums; font-weight:600;">0:00:00</span>
@@ -756,6 +787,28 @@
         <button class="ghost" id="requestCancelBtn">Cancel</button>
         <button class="primary" id="requestSubmitBtn">Submit request</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="searchOverlay">
+  <div class="modal search">
+    <div class="search-bar">
+      <input type="text" id="searchInput" autocomplete="off" spellcheck="false"
+             placeholder="Search every job - customer, #job number, postcode, notes, serial...">
+      <button class="ghost" id="searchCloseBtn">Close</button>
+    </div>
+    <div class="search-scopes" id="searchScopes">
+      <button class="scope-chip on" data-scope="all">All jobs</button>
+      <button class="scope-chip" data-scope="future">Upcoming</button>
+      <button class="scope-chip" data-scope="past">Past</button>
+      <span class="search-count" id="searchCount"></span>
+    </div>
+    <div class="search-results" id="searchResults"></div>
+    <div class="search-foot">
+      Every job is searched - past, future and invoiced. Words all have to match.
+      <span class="kbd">Enter</span> opens the highlighted one, <span class="kbd">Esc</span> closes,
+      <span class="kbd">Ctrl</span>+<span class="kbd">K</span> reopens.
     </div>
   </div>
 </div>
@@ -1424,6 +1477,30 @@
   let modalIsNewJob = true;
   let pendingRequestId = null;   // set when the open job modal was launched from a tech's job request
 
+  // Search overlay state. The query lives in the input, so it survives a re-render;
+  // only the scope, the highlighted row and the last result list live here.
+  let searchScope = "all";
+  let searchSel = 0;
+  let searchList = [];
+  let searchTotal = 0;
+  const SEARCH_LIMIT = 60;
+  // Follow-up filter state. Module-level so it survives render(), and the filter
+  // bar re-renders with the value the user already typed.
+  let followUpFilter = { q: "", lane: "" };
+
+  // Which collapsed sections the user has opened or closed themselves, keyed by
+  // job. This used to be data-touched on the <details> element itself, which was
+  // wrong twice over: the element is shared by every job, and the flag was
+  // deleted each time the modal opened - so the app decided the sections afresh
+  // every time and a user's own choice was forgotten immediately. Making the flag
+  // sticky instead was no better, because a choice made on one job then leaked
+  // into the next. Keying it by job gives both: the choice sticks where it was
+  // made, and every other job still opens or collapses on its own data.
+  const touchedSections = Object.create(null);
+  // Reads the id out of the hidden field rather than a variable, because the
+  // visibility helper below runs from listeners that have no jobId in scope.
+  const sectionKey = (id) => ((document.getElementById("jobId") || {}).value || "new") + ":" + id;
+
   function laneById(id) { return state.lanes.find(l => l.id === id); }
   function jobsOn(dateStr) { return state.jobs.filter(j => j.date === dateStr); }
 
@@ -1511,16 +1588,21 @@
     } else {
       update = { [dbRunningCol]: new Date().toISOString() };
     }
-    await sb.from("jobs").update(update).eq("id", id);
+    const res = await sb.from("jobs").update(update).eq("id", id);
+    if (isNetworkError(res)) {
+      queueOfflineWrite("jobs", "update", update, [["eq", "id", id]]);
+      // The clock keeps ticking in this browser either way, so show the new
+      // state straight away; the queue sends the same numbers later.
+      if (update[dbSecsCol] !== undefined) job[secsKey] = update[dbSecsCol];
+      if (update[dbRunningCol] !== undefined) job[runningKey] = update[dbRunningCol];
+    }
     await loadJobs();
     refreshTimerDisplays();
     render();
   }
   document.getElementById("travelTimerBtn").addEventListener("click", () => toggleTimer("travel"));
   document.getElementById("warrantyTimerBtn").addEventListener("click", () => toggleTimer("warranty"));
-  document.getElementById("f_warranty").addEventListener("change", (e) => {
-    document.getElementById("warrantyTimerField").style.display = e.target.checked ? "" : "none";
-  });
+  document.getElementById("f_warranty").addEventListener("change", () => updateJobTypeVisibility());
 
   // ---------- Access gate ----------
   // A viewer sees the whole diary and can ask for work, but must never be able
@@ -1753,6 +1835,8 @@
     await purgeInvoiced();
     subscribeRealtime();
     render();
+    // Anything saved while the signal was down goes out now that we're in.
+    if (offlineQueueRead().length) replayOfflineQueue();
   }
 
   async function loadLanes() {
@@ -1798,27 +1882,149 @@
     toastTimer = setTimeout(() => el.classList.remove("show"), ms || 6000);
   }
 
+  // ---------- Offline write queue ----------
+  // A dead signal used to eat whatever you were doing: the save, the timer, the
+  // delete - the request failed and the change was simply gone. Any write that
+  // fails for network reasons now goes into localStorage and is replayed in
+  // order the moment the browser is back online. A refusal from the server
+  // (permission denied, a failed check) is NOT queued: that change will never be
+  // allowed, so it is reported instead of retried forever.
+  const OFFLINE_QUEUE_KEY = "fd.offlineQueue";
+  const OFFLINE_QUEUE_MAX = 100;
+  function offlineQueueRead() {
+    try {
+      const q = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY));
+      return Array.isArray(q) ? q : [];
+    } catch (e) { return []; }
+  }
+  function offlineQueueSave(q) {
+    try { localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q)); } catch (e) { /* storage full or blocked */ }
+    renderOfflineBadge();
+  }
+  // postgrest-js answers a fetch failure with status 0 and the browser's own
+  // wording ("Failed to fetch", "Load failed", ...). Anything the server actually
+  // replied to has a real status and must never be queued.
+  function isNetworkError(res) {
+    if (!res || !res.error) return false;
+    if (res.status === 0) return true;
+    return /failed to fetch|load failed|networkerror|network request failed|ERR_INTERNET|ERR_NETWORK/i.test(String(res.error.message || ""));
+  }
+  // The queue's insert needs an id up front so the row can appear on screen now
+  // and still be the same row once the queue sends it (see replayOfflineQueue).
+  function newUuid() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+    });
+  }
+  function queueOfflineWrite(table, op, values, filters) {
+    const q = offlineQueueRead();
+    q.push({ table, op, values: values || null, filters: filters || [], who: session ? session.email : null, at: new Date().toISOString() });
+    while (q.length > OFFLINE_QUEUE_MAX) q.shift(); // keep the oldest: the newest is the one typed last
+    offlineQueueSave(q);
+    notify("No signal — that change is saved on this device and will send by itself when you're back online.", 7000);
+  }
+  function renderOfflineBadge() {
+    let el = document.getElementById("syncBadge");
+    const n = offlineQueueRead().length;
+    if (!n) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "syncBadge";
+      el.style.cssText = "position:fixed;left:10px;bottom:10px;z-index:400;background:var(--amber-soft);color:#7a5b00;border:1px solid var(--amber);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.15);";
+      document.body.appendChild(el);
+    }
+    el.textContent = n === 1 ? "1 change waiting to send" : n + " changes waiting to send";
+  }
+  let offlineReplaying = false;
+  // Oldest first, one at a time, stopping the moment the signal drops again so
+  // nothing already saved is lost or sent twice.
+  async function replayOfflineQueue() {
+    if (offlineReplaying || !sb || !session) return;
+    const q = offlineQueueRead();
+    if (!q.length) return;
+    offlineReplaying = true;
+    let sent = 0, dropped = 0, i = 0;
+    const reloads = new Set();
+    try {
+      for (; i < q.length; i++) {
+        const item = q[i];
+        if (item.who && session.email && item.who !== session.email) {
+          // Saved by someone else on this device - not ours to send.
+          console.warn("Offline queue: not sending a change saved by", item.who);
+          dropped++;
+          continue;
+        }
+        let res;
+        try {
+          let b = sb.from(item.table);
+          if (item.op === "insert") b = b.insert(item.values);
+          else if (item.op === "delete") b = b.delete();
+          else b = b.update(item.values);
+          (item.filters || []).forEach(f => { b = b[f[0]](f[1], f[2]); });
+          res = await b;
+        } catch (e) {
+          res = { error: { message: String((e && e.message) || e) }, status: 0 };
+        }
+        if (isNetworkError(res)) break; // still no signal - keep this item and everything after it
+        if (res.error) {
+          console.warn("Offline queue: refused, dropped:", item, res.error.message);
+          dropped++;
+          continue;
+        }
+        sent++;
+        reloads.add(item.table);
+      }
+    } finally {
+      offlineReplaying = false;
+    }
+    offlineQueueSave(q.slice(i));
+    if (sent) {
+      if (reloads.has("jobs")) { try { await loadJobs(); } catch (e) { /* the screen already shows the queued change */ } }
+      if (reloads.has("job_requests")) { try { await loadJobRequests(); } catch (e) { /* nothing extra to show */ } }
+      render();
+    }
+    const bits = [];
+    if (sent) bits.push(sent === 1 ? "Sent the change you saved offline." : `Sent ${sent} changes you saved offline.`);
+    if (dropped) bits.push(`${dropped} saved change${dropped === 1 ? "" : "s"} couldn't be sent and ${dropped === 1 ? "was" : "were"} dropped — open the job and check before re-typing it.`);
+    if (bits.length) notify(bits.join(" "), 8000);
+  }
+  window.addEventListener("online", () => setTimeout(replayOfflineQueue, 800));
+  // The browser's "online" event is not always trustworthy, so keep trying
+  // quietly while anything is waiting: a signal that comes back without the
+  // event still drains the queue.
+  setInterval(() => { if (offlineQueueRead().length) replayOfflineQueue(); }, 45000);
+  renderOfflineBadge();
+
   // A workshop job shouldn't quietly go stale: if its day has passed and nobody
   // has ticked "Attended", pull it forward to today so it stays on the radar
   // instead of sinking into the follow-up pile. Office only — a technician
   // logging in must never rewrite the schedule.
   async function rollForwardWorkshopJobs() {
     if (!session.isAdmin) return 0;
-    const todayStr = fmtISODate(startOfDay(new Date()));
+    // Weekends have no columns, so never land a job on one — roll to today,
+    // or to the next weekday if today is a Saturday or Sunday.
+    const today = startOfDay(new Date());
+    let target = today;
+    while (target.getDay() === 0 || target.getDay() === 6) target = addDays(target, 1);
+    const todayStr = fmtISODate(today);
+    const targetStr = fmtISODate(target);
     const stale = state.jobs.filter(j =>
-      j.date && j.date < todayStr && !j.attended && (j.type === "workshop" || isWorkshopLane(j.lane)));
+      j.date && j.date < targetStr && !j.attended && (j.type === "workshop" || isWorkshopLane(j.lane)));
     if (!stale.length) return 0;
     let moved = 0;
     for (const j of stale) {
-      const { error } = await sb.from("jobs").update({ date: todayStr }).eq("id", j.id);
+      const { error } = await sb.from("jobs").update({ date: targetStr }).eq("id", j.id);
       if (error) console.warn("Couldn't roll a workshop job forward", j.id, error.message);
       else moved++;
     }
     if (moved) {
       const clashes = stale.filter(j => j.workshopBay
-        && state.jobs.some(o => o.id !== j.id && o.date === todayStr && o.workshopBay === j.workshopBay)).length;
+        && state.jobs.some(o => o.id !== j.id && o.date === targetStr && o.workshopBay === j.workshopBay)).length;
       await loadJobs();
-      notify(`Moved ${moved} unfinished workshop job${moved === 1 ? "" : "s"} to today so they don't go stale.`
+      const where = targetStr === todayStr ? "to today" : `to ${fmtUKDate(targetStr)}`;
+      notify(`Moved ${moved} unfinished workshop job${moved === 1 ? "" : "s"} ${where} so they don't go stale.`
         + (clashes ? ` ${clashes} now share a bay — check the Workshop view.` : "")
         + " Tick Attended when the work is done.");
     }
@@ -1945,6 +2151,9 @@
     const pendingCount = pendingRequests().length;
     if (pendingCount) { reqBadge.textContent = pendingCount > 99 ? "99+" : String(pendingCount); reqBadge.style.display = ""; }
     else { reqBadge.style.display = "none"; }
+    // Keep the picker in step with wherever prev/next/today left the cursor.
+    const jump = document.getElementById("jumpDate");
+    if (jump) jump.value = fmtISODate(cursorDate);
   }
 
   // ---------- Month view ----------
@@ -1952,7 +2161,7 @@
     const el = document.getElementById("content");
     const first = startOfMonth(cursorDate);
     const today = startOfDay(new Date());
-    const dows = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    const dows = ["Mon","Tue","Wed","Thu","Fri"];
     const todayStr = fmtISODate(today);
     // Six weeks from the Monday on or before the 1st. That always reaches past
     // the end of the month, so the next month's days are in the grid.
@@ -1965,7 +2174,14 @@
     const from = thisMonth ? startOfWeek(today) : gridStart;
     const gridEnd = addDays(from, 41);
     const days = [];
-    for (let d = from; d <= gridEnd; d = addDays(d, 1)) days.push(d);
+    // No weekend columns. The team does not work Saturdays and the shop shuts
+    // early, so Saturday and Sunday get no space at all. Six weeks is still six
+    // weeks - just thirty weekday cells instead of forty-two.
+    for (let d = from; d <= gridEnd; d = addDays(d, 1)) {
+      const w = d.getDay();
+      if (w === 0 || w === 6) continue;
+      days.push(d);
+    }
     let html = `<div class="month-box" id="monthBox"><div class="month-head">`;
     dows.forEach(d => html += `<div class="month-dow">${d}</div>`);
     html += `</div><div class="month-grid">`;
@@ -1996,10 +2212,12 @@
   function renderWeek() {
     const el = document.getElementById("content");
     const ws = startOfWeek(cursorDate);
-    const days = Array.from({length:7}, (_,i) => addDays(ws,i));
+    // Weekdays only, same as the month grid - no Saturday or Sunday column.
+    const days = Array.from({length:7}, (_,i) => addDays(ws,i))
+      .filter(d => { const w = d.getDay(); return w !== 0 && w !== 6; });
     const lanes = state.lanes.filter(l => state.activeLanes.includes(l.id));
 
-    const GRID_COLS = "120px repeat(7, 110px)";
+    const GRID_COLS = "120px repeat(5, 140px)";
     let head = `<div class="swim-wrap"><div class="swim-scroll"><div class="swim-head" style="grid-template-columns: ${GRID_COLS};"><div class="swim-head-cell">Team</div>`;
     days.forEach(d => {
       head += `<div class="swim-head-cell"><div class="day-col-label"><span>${d.toLocaleDateString(undefined,{day:"numeric",month:"short"})}</span><span class="dow">${d.toLocaleDateString(undefined,{weekday:"short"})}</span></div></div>`;
@@ -2080,7 +2298,7 @@
       jobs.forEach(j => {
         const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
         html += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
-          <div class="job-time">${j.time?escapeHtml(j.time):"—"} · ${formatDuration(j.duration||0, state.workDayMins)}${j.travel?` (+${j.travel} travel)`:""}</div>
+          <div class="job-time">${j.time?escapeHtml(j.time):"—"} · ${formatDuration(j.duration||0, state.workDayMins)}${j.travel && !(j.type === "workshop" || isWorkshopLane(j.lane))?` (+${j.travel} travel)`:""}</div>
           <div class="job-cust">${num}${escapeHtml(j.customer||"Untitled job")}${confirmedTick(j)}${apprenticeTag(j)}${warrantyTag(j)}</div>
           ${(j.make||j.model)?`<div class="job-meta">${escapeHtml([j.make,j.model].filter(Boolean).join(" "))}${j.serial?" · S/N "+escapeHtml(j.serial):""}</div>`:""}
           <div class="job-meta">${typeLabel(j.type)}${j.address?` · ${escapeHtml(j.address)} · <a href="${mapsUrl(j.address)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--green); font-weight:600; text-decoration:none;">Maps ↗</a>`:""}</div>
@@ -2196,26 +2414,34 @@
     </div>`;
   }
 
-  function renderFollowUp() {
+  const FU_LABELS = {
+    invoice: ["To invoice / warranty", "Nothing waiting"],
+    rebook: ["Needs rebooking", "Nothing overdue"],
+    done: ["Invoiced / warranty approved", "Nothing here yet"]
+  };
+  function followUpQueues() {
+    return {
+      invoice: invoiceQueue().sort((a, b) => b.date.localeCompare(a.date) || (b.time || "").localeCompare(a.time || "")),
+      rebook: rebookQueue().sort((a, b) => b.date.localeCompare(a.date) || (b.time || "").localeCompare(a.time || "")),
+      done: doneQueue().sort((a, b) => a.invoicedAt.localeCompare(b.invoicedAt))
+    };
+  }
+  function followUpFilterOn() {
+    return !!(followUpFilter.q.trim() || followUpFilter.lane);
+  }
+  function matchFollowUp(j) {
+    const q = followUpFilter.q.trim().toLowerCase();
+    if (q && searchHaystack(j).toLowerCase().indexOf(q) === -1) return false;
+    if (followUpFilter.lane && j.lane !== followUpFilter.lane) return false;
+    return true;
+  }
+  function followUpBodyHtml(key, list) {
+    if (list.length) return list.map(followUpJobRow).join("");
+    if (followUpFilterOn()) return `<div class="empty-hint">No matches</div>`;
+    return `<div class="empty-hint">${FU_LABELS[key][1]}</div>`;
+  }
+  function bindFollowUpRows() {
     const el = document.getElementById("content");
-    const invoiceJobs = invoiceQueue().sort((a,b) => b.date.localeCompare(a.date) || (b.time||"").localeCompare(a.time||""));
-    const doneJobs = doneQueue().sort((a,b) => b.invoicedAt.localeCompare(a.invoicedAt));
-    const rebookJobs = rebookQueue().sort((a,b) => b.date.localeCompare(a.date) || (b.time||"").localeCompare(a.time||""));
-    let html = `<div class="day-lanes">
-      <div class="day-lane">
-        <div class="day-lane-head"><strong style="flex:1;">To invoice / warranty</strong><span class="cap-pct">${invoiceJobs.length} job${invoiceJobs.length===1?"":"s"}</span></div>
-        <div class="day-lane-body">${invoiceJobs.length ? invoiceJobs.map(followUpJobRow).join("") : `<div class="empty-hint">Nothing waiting</div>`}</div>
-      </div>
-      <div class="day-lane">
-        <div class="day-lane-head"><strong style="flex:1;">Needs rebooking</strong><span class="cap-pct">${rebookJobs.length} job${rebookJobs.length===1?"":"s"}</span></div>
-        <div class="day-lane-body">${rebookJobs.length ? rebookJobs.map(followUpJobRow).join("") : `<div class="empty-hint">Nothing overdue</div>`}</div>
-      </div>
-      <div class="day-lane">
-        <div class="day-lane-head"><strong style="flex:1;">Invoiced / warranty approved</strong><span class="cap-pct">${doneJobs.length} job${doneJobs.length===1?"":"s"}</span></div>
-        <div class="day-lane-body">${doneJobs.length ? doneJobs.map(followUpJobRow).join("") : `<div class="empty-hint">Nothing here yet</div>`}</div>
-      </div>
-    </div>`;
-    el.innerHTML = html;
     el.querySelectorAll(".job-block").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
     el.querySelectorAll("[data-mark-invoice]").forEach(b => b.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -2225,6 +2451,251 @@
       setInvoiced(id, true);
     }));
     el.querySelectorAll("[data-undo-invoice]").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); setInvoiced(b.dataset.undoInvoice, false); }));
+  }
+  // Typing rewrites only the three list bodies. The bar itself is never
+  // re-rendered here, so the input keeps its focus and its caret.
+  function renderFollowUpLists() {
+    const all = followUpQueues();
+    let shown = 0, total = 0;
+    ["invoice", "rebook", "done"].forEach(k => {
+      const list = all[k].filter(matchFollowUp);
+      shown += list.length;
+      total += all[k].length;
+      const body = document.querySelector(`[data-fu-body="${k}"]`);
+      if (body) body.innerHTML = followUpBodyHtml(k, list);
+      const cnt = document.querySelector(`[data-fu-count="${k}"]`);
+      if (cnt) cnt.textContent = list.length !== all[k].length
+        ? `${list.length} of ${all[k].length} jobs`
+        : `${list.length} job${list.length === 1 ? "" : "s"}`;
+    });
+    const agg = document.getElementById("fuFilterCount");
+    if (agg) agg.textContent = followUpFilterOn() ? `${shown} of ${total} shown` : "";
+    const clr = document.getElementById("fuFilterClear");
+    if (clr) clr.disabled = !followUpFilterOn();
+    bindFollowUpRows();
+  }
+  function renderFollowUp() {
+    const el = document.getElementById("content");
+    const all = followUpQueues();
+    const laneOpts = [`<option value="">All technicians</option>`]
+      .concat(state.lanes.slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+        .map(l => `<option value="${escapeHtml(l.id)}"${followUpFilter.lane === l.id ? " selected" : ""}>${escapeHtml(l.name)}</option>`));
+    let html = `<div class="fu-filter">
+      <input class="fu-q" id="fuFilterQ" type="search" placeholder="Filter by number, customer, address..." value="${escapeHtml(followUpFilter.q)}" aria-label="Filter follow-up jobs">
+      <select class="fu-lane" id="fuFilterLane" aria-label="Filter follow-up jobs by technician">${laneOpts.join("")}</select>
+      <button class="ghost fu-clear" id="fuFilterClear" type="button">Clear</button>
+      <span class="cap-pct fu-count" id="fuFilterCount"></span>
+    </div>
+    <div class="day-lanes">`;
+    ["invoice", "rebook", "done"].forEach(k => {
+      html += `<div class="day-lane">
+        <div class="day-lane-head"><strong style="flex:1;">${FU_LABELS[k][0]}</strong><span class="cap-pct" data-fu-count="${k}"></span></div>
+        <div class="day-lane-body" data-fu-body="${k}"></div>
+      </div>`;
+    });
+    html += `</div>`;
+    el.innerHTML = html;
+    renderFollowUpLists();
+    const q = document.getElementById("fuFilterQ");
+    q.addEventListener("input", () => { followUpFilter.q = q.value; renderFollowUpLists(); });
+    document.getElementById("fuFilterLane").addEventListener("change", (e) => {
+      followUpFilter.lane = e.target.value;
+      renderFollowUpLists();
+    });
+    document.getElementById("fuFilterClear").addEventListener("click", () => {
+      followUpFilter.q = "";
+      followUpFilter.lane = "";
+      q.value = "";
+      document.getElementById("fuFilterLane").value = "";
+      renderFollowUpLists();
+      q.focus();
+    });
+  }
+
+  // ---------- Search ----------
+  // One haystack per job, built from every field a person is likely to type.
+  // Postcodes get a second, space-free copy of both sides so "ex4 2aa" and
+  // "ex42aa" find the same job.
+  function searchHaystack(j) {
+    const lane = laneById(j.lane);
+    return [j.jobNumber, j.customer, j.customerEmail, j.address, j.notes, j.make, j.model, j.serial,
+            typeLabel(j.type), j.workshopBay, lane ? lane.name : j.lane, j.date]
+      .filter(v => v !== null && v !== undefined && v !== "").join(" ");
+  }
+  function jobMatchesTokens(j, toks, toksNS) {
+    const hay = searchHaystack(j).toLowerCase();
+    const hayNS = hay.replace(/\s+/g, "");
+    for (let i = 0; i < toks.length; i++) {
+      if (hay.indexOf(toks[i]) === -1 && (!toksNS[i] || hayNS.indexOf(toksNS[i]) === -1)) return false;
+    }
+    return true;
+  }
+  // Rank so the obvious answer is first: an exact job number beats a job number
+  // prefix, which beats a customer starting with it, which beats a hit anywhere.
+  function searchScore(j, tok0) {
+    const num = String(j.jobNumber || "").toLowerCase();
+    const cust = String(j.customer || "").toLowerCase();
+    if (num && num === tok0) return 0;
+    if (num && num.indexOf(tok0) === 0) return 1;
+    if (cust && cust.indexOf(tok0) === 0) return 2;
+    if (cust && cust.indexOf(tok0) !== -1) return 3;
+    return 4;
+  }
+  function searchJobs(q) {
+    const query = String(q || "").trim().toLowerCase();
+    const empty = { list: [], total: 0 };
+    if (!query) return empty;
+    const toks = query.split(/\s+/).filter(Boolean);
+    const toksNS = toks.map(t => t.replace(/\s+/g, ""));
+    const today = fmtISODate(startOfDay(new Date()));
+    const matched = state.jobs.filter(j => {
+      if (searchScope === "future" && !(j.date >= today)) return false;
+      if (searchScope === "past" && !(j.date < today)) return false;
+      return jobMatchesTokens(j, toks, toksNS);
+    });
+    matched.sort((a, b) => searchScore(a, toks[0]) - searchScore(b, toks[0])
+      || String(b.date || "").localeCompare(String(a.date || ""))
+      || String(b.time || "").localeCompare(String(a.time || "")));
+    return { list: matched.slice(0, SEARCH_LIMIT), total: matched.length };
+  }
+  function searchResultRow(j) {
+    const lane = laneById(j.lane) || { color: "#999", name: j.lane || "" };
+    const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
+    return `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
+      <div class="job-time">${escapeHtml(fmtUKDate(j.date))}${j.time ? " · " + escapeHtml(j.time) : ""} · ${escapeHtml(lane.name)} · ${typeLabel(j.type)}</div>
+      <div class="job-cust">${num}${escapeHtml(j.customer || "Untitled job")}${confirmedTick(j)}${warrantyTag(j)}</div>
+      ${j.address ? `<div class="job-meta">${escapeHtml(j.address)}</div>` : ""}
+      <div class="job-meta" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:4px; align-items:center;">
+        <span class="status-pill status-${j.status || "planned"}">${statusLabel(j.status)}</span>
+        ${j.invoicedAt ? `<span class="tag-chain">Invoiced</span>` : (!isPastDate(j.date) ? "" : j.attended ? `<span class="tag-chain">To invoice</span>` : `<span class="tag-chain">Needs rebooking</span>`)}
+        ${j.workshopBay ? `<span class="tag-bay">${escapeHtml(j.workshopBay)}</span>` : ""}
+        <span class="search-open-day" data-search-day="${j.date}" title="Show this day in the diary">Open day</span>
+      </div>
+    </div>`;
+  }
+  function renderSearchResults() {
+    const box = document.getElementById("searchResults");
+    const count = document.getElementById("searchCount");
+    if (!box) return;
+    const q = document.getElementById("searchInput").value;
+    if (!String(q).trim()) {
+      searchList = []; searchTotal = 0; searchSel = 0;
+      box.innerHTML = `<div class="search-empty">Type to search every job the diary holds -<br>
+        customer, job number, postcode, notes, make, model or serial.</div>`;
+      count.textContent = "";
+      return;
+    }
+    const res = searchJobs(q);
+    searchList = res.list; searchTotal = res.total;
+    if (searchSel >= searchList.length) searchSel = 0;
+    if (!searchList.length) {
+      box.innerHTML = `<div class="search-empty">Nothing matches &ldquo;${escapeHtml(String(q).trim())}&rdquo;.</div>`;
+      count.textContent = "";
+      return;
+    }
+    count.textContent = res.total > searchList.length
+      ? `showing ${searchList.length} of ${res.total}`
+      : `${res.total} job${res.total === 1 ? "" : "s"}`;
+    box.innerHTML = searchList.map(searchResultRow).join("");
+    const rows = box.querySelectorAll(".job-block");
+    rows.forEach((r, i) => {
+      r.classList.toggle("sel", i === searchSel);
+      r.addEventListener("click", (e) => {
+        if (e.target.closest("[data-search-day]")) return;
+        const id = r.dataset.job;
+        closeSearch();
+        openJobModal(id);
+      });
+    });
+    box.querySelectorAll("[data-search-day]").forEach(a => a.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const d = a.dataset.searchDay;
+      closeSearch();
+      gotoDate(d, "day");
+    }));
+  }
+  function moveSearchSelection(delta) {
+    if (!searchList.length) return;
+    searchSel = (searchSel + delta + searchList.length) % searchList.length;
+    const rows = document.getElementById("searchResults").querySelectorAll(".job-block");
+    rows.forEach((r, i) => r.classList.toggle("sel", i === searchSel));
+    if (rows[searchSel]) rows[searchSel].scrollIntoView({ block: "nearest" });
+  }
+  function openSearch() {
+    const ov = document.getElementById("searchOverlay");
+    ov.classList.add("open");
+    const inp = document.getElementById("searchInput");
+    inp.focus(); inp.select();
+    renderSearchResults();
+  }
+  function closeSearch() { document.getElementById("searchOverlay").classList.remove("open"); }
+  function searchIsOpen() { return document.getElementById("searchOverlay").classList.contains("open"); }
+
+  // Move the diary to a date, from anywhere. Views with no date of their own
+  // (Follow-up, Mileage, Requests, Setup) have nothing to show for it, so land
+  // on the day view instead of silently doing nothing.
+  function gotoDate(dateStr, wantView) {
+    const viewsWithDate = ["month", "week", "day", "bays"];
+    let v = wantView || currentView;
+    if (!viewsWithDate.includes(v)) v = "day";
+    cursorDate = new Date(dateStr + "T00:00:00");
+    if (v !== currentView) currentView = v;
+    render();
+  }
+
+  // ---------- CSV export ----------
+  // Quoting the cell is not enough on its own: Excel still reads a cell that
+  // begins with = as a formula, and notes come from customers. Lead anything
+  // dangerous with a tick so it stays text. A plain number keeps its sign, so
+  // "-3.5" exports untouched but "- said he" does not.
+  function csvCell(v) {
+    if (v === null || v === undefined) v = "";
+    let s = String(v);
+    if (/^[=+@\t\r]/.test(s) || /^-(?![0-9.])/.test(s)) s = "'" + s;
+    if (/[",\n\r]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  const CSV_COLUMNS = [
+    ["job_number",     j => j.jobNumber],
+    ["date",           j => j.date],
+    ["time",           j => j.time],
+    ["type",           j => typeLabel(j.type)],
+    ["status",         j => statusLabel(j.status)],
+    ["customer",       j => j.customer],
+    ["customer_email", j => j.customerEmail],
+    ["address",        j => j.address],
+    ["technician",     j => { const l = laneById(j.lane); return l ? l.name : j.lane; }],
+    ["duration_mins",  j => j.duration],
+    ["travel_mins",    j => j.travel],
+    ["mileage_miles",  j => j.mileage],
+    ["make",           j => j.make],
+    ["model",          j => j.model],
+    ["serial_number",  j => j.serial],
+    ["warranty",       j => (j.warranty ? "yes" : "no")],
+    ["attended",       j => (j.attended ? "yes" : "no")],
+    ["workshop_bay",   j => j.workshopBay],
+    ["chain_role",     j => j.linkRole],
+    ["follow_up_on",   j => j.followUpOn],
+    ["invoiced_on",    j => (j.invoicedAt ? String(j.invoicedAt).slice(0, 10) : "")],
+    ["notes",          j => j.notes],
+    ["job_id",         j => j.id]
+  ];
+  function buildJobsCsv(rows) {
+    const list = (rows || state.jobs).slice().sort((a, b) =>
+      String(a.date || "").localeCompare(String(b.date || ""))
+      || String(a.time || "").localeCompare(String(b.time || "")));
+    const lines = [CSV_COLUMNS.map(c => c[0]).join(",")];
+    list.forEach(j => lines.push(CSV_COLUMNS.map(c => csvCell(c[1](j))).join(",")));
+    // The BOM is what stops Excel mangling anything outside plain ASCII.
+    return "\uFEFF" + lines.join("\n");
+  }
+  function exportJobsCsv() {
+    const blob = new Blob([buildJobsCsv()], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `field-diary-jobs-${fmtISODate(new Date())}.csv`;
+    a.click();
+    notify(`Exported ${state.jobs.length} job${state.jobs.length === 1 ? "" : "s"} as .csv.`);
   }
 
   // ---------- Workshop bays ----------
@@ -3101,9 +3572,15 @@
       notes: notes || null,
       status: "pending"
     };
-    const { error } = await sb.from("job_requests").insert(row);
+    const res = await sb.from("job_requests").insert(row);
     btn.disabled = false;
-    if (error) { alert("Couldn't submit that — check your connection and try again."); return; }
+    if (isNetworkError(res)) {
+      queueOfflineWrite("job_requests", "insert", row, []);
+      closeRequestModal();
+      alert("No signal — your request is saved on this device and will reach the office by itself when you're back online.");
+      return;
+    }
+    if (res.error) { alert("Couldn't submit that — check your connection and try again."); return; }
     closeRequestModal();
     alert("Sent to the office.");
   }
@@ -3120,6 +3597,9 @@
     else if (currentView === "requests") renderRequests();
     else if (currentView === "setup") renderSetup();
     else renderFollowUp();
+    // A job changing under an open search (someone else's edit, a purge) would
+    // otherwise leave stale rows on screen pointing at jobs that have gone.
+    if (searchIsOpen()) renderSearchResults();
   }
 
   // ---------- Modal ----------
@@ -3181,6 +3661,17 @@
     document.getElementById("f_linkRoleField").style.display = (type === "fetch" || type === "workshop" || type === "deliver") ? "" : "none";
     const lane = document.getElementById("f_lane").value;
     document.getElementById("f_bayField").style.display = isWorkshopLane(lane) ? "" : "none";
+    // A workshop job never travels: no travel buffer, no travel timer, no
+    // mileage for invoicing. Hiding the fields keeps the form honest about it;
+    // saving still forces travel to 0 so a stale buffer can't ride along.
+    const isWs = type === "workshop" || isWorkshopLane(lane);
+    const hide = isWs ? "none" : "";
+    const travelField = document.getElementById("f_travelField");
+    if (travelField) travelField.style.display = hide;
+    const mileageSection = document.getElementById("mileageSection");
+    if (mileageSection) mileageSection.style.display = hide;
+    const travelTimerField = document.getElementById("travelTimerField");
+    if (travelTimerField) travelTimerField.style.display = hide;
     // Install detail only makes sense on installs; a demo or site visit shouldn't carry a wire spec.
     const showInstall = capCol("install_details") && type === "install";
     const wrap = document.getElementById("installWrap");
@@ -3191,9 +3682,19 @@
       // opened or closed it themselves. A viewer never gets it opened for them:
       // it is a wall of locked fields spanning most of the form, and they have no
       // reason to be looking at it.
-      if (showInstall && det.dataset.touched !== "1") det.open = viewerNow() ? false : !modalIsNewJob;
+      if (showInstall && !touchedSections[sectionKey("installDetails")]) det.open = viewerNow() ? false : !modalIsNewJob;
     }
     if (wrap) wrap.style.display = showInstall ? "" : "none";
+    // Both timers share one row: a new job has nothing to time yet, and a
+    // workshop job has no travel timer - show the row when a job is open and
+    // either timer is still on screen.
+    const warrantyOn = document.getElementById("f_warranty").checked;
+    const warrantyTimerField = document.getElementById("warrantyTimerField");
+    if (warrantyTimerField) warrantyTimerField.style.display = warrantyOn ? "" : "none";
+    const timerRow = document.getElementById("timerRow");
+    if (timerRow && !viewerNow()) {
+      timerRow.style.display = (document.getElementById("jobId").value && (!isWs || warrantyOn)) ? "" : "none";
+    }
   }
   function updateApprenticeVisibility() {
     const lane = document.getElementById("f_lane").value;
@@ -3249,7 +3750,6 @@
     const overlay = document.getElementById("overlay");
     const job = jobId ? state.jobs.find(j => j.id === jobId) : null;
     modalIsNewJob = !job;
-    ["moreDetails", "installDetails"].forEach(id => { const d = document.getElementById(id); if (d) delete d.dataset.touched; });
     document.getElementById("modalTitle").textContent = job ? "Job details" : "New job";
     document.getElementById("jobId").value = job ? job.id : "";
     document.getElementById("f_jobnum").value = job ? (job.jobNumber||"") : "";
@@ -3268,8 +3768,6 @@
     document.getElementById("f_serial").value = job ? (job.serial||"") : "";
     document.getElementById("f_warranty").checked = job ? !!job.warranty : false;
     document.getElementById("f_attended").checked = job ? !!job.attended : false;
-    document.getElementById("warrantyTimerField").style.display = document.getElementById("f_warranty").checked ? "" : "none";
-    document.getElementById("timerRow").style.display = job ? "" : "none";
     document.getElementById("f_address").value = job ? (job.address||"") : "";
     updateMapsLink();
     mileageReqToken++; // cancel any in-flight lookup from a previously open modal
@@ -3310,7 +3808,7 @@
     // section stays wherever the user left it.
     const more = document.getElementById("moreDetails");
     if (more) {
-      if (more.dataset.touched !== "1") {
+      if (!touchedSections[sectionKey("moreDetails")]) {
         // A viewer gets it collapsed regardless. "It has data in it" is a reason
         // to open the section for someone who can act on the data; a viewer can
         // act on none of it, so opening it just buries the few fields they might
@@ -3344,7 +3842,7 @@
   ["moreDetails", "installDetails"].forEach(id => {
     const det = document.getElementById(id);
     const sum = det && det.querySelector("summary");
-    if (sum) sum.addEventListener("click", () => { det.dataset.touched = "1"; });
+    if (sum) sum.addEventListener("click", () => { touchedSections[sectionKey(id)] = true; });
   });
   document.getElementById("f_lane").addEventListener("change", () => { updateApprenticeVisibility(); populateBaySelect(); debouncedUpdateMileage(); });
   document.getElementById("f_address").addEventListener("input", updateMapsLink);
@@ -3439,6 +3937,9 @@
       distanceError: null,
       linkedJobId: id ? ((state.jobs.find(j => j.id === id) || {}).linkedJobId || null) : null
     };
+    // A workshop job never travels, whatever an old form or a stale buffer left
+    // in the box - save 0 so it can't affect the clash check or the schedule.
+    if (job.type === "workshop" || isWorkshopLane(job.lane)) job.travel = 0;
     // Preserve the existing link when the office is editing — the chain buttons own that field.
     const prev = id ? state.jobs.find(j => j.id === id) : null;
     if (prev) {
@@ -3466,11 +3967,22 @@
     }
     const dbRow = appJobToDb(job);
     if (id) {
-      const { error } = await sb.from("jobs").update(dbRow).eq("id", id);
-      if (error) { alert("Couldn't save that job: " + error.message); return; }
+      const res = await sb.from("jobs").update(dbRow).eq("id", id);
+      if (isNetworkError(res)) {
+        queueOfflineWrite("jobs", "update", dbRow, [["eq", "id", id]]);
+        // loadJobs can't run without a signal, so put the change on the screen now.
+        const idx = state.jobs.findIndex(j => j.id === id);
+        if (idx >= 0) state.jobs[idx] = Object.assign({}, state.jobs[idx], job, { id: id });
+      } else if (res.error) { alert("Couldn't save that job: " + res.error.message); return; }
     } else {
-      const { error } = await sb.from("jobs").insert(dbRow);
-      if (error) { alert("Couldn't save that job: " + error.message); return; }
+      const res = await sb.from("jobs").insert(dbRow);
+      if (isNetworkError(res)) {
+        // The insert never reached the database, so the id is made here and sent
+        // with the queued row - the same id comes back later, so no second copy.
+        dbRow.id = newUuid();
+        queueOfflineWrite("jobs", "insert", dbRow, []);
+        state.jobs.push(dbJobToApp(dbRow));
+      } else if (res.error) { alert("Couldn't save that job: " + res.error.message); return; }
     }
     if (pendingRequestId) {
       await sb.from("job_requests").update({ status: "actioned" }).eq("id", pendingRequestId);
@@ -3479,7 +3991,8 @@
     }
     await loadJobs();
     // Adding, moving or re-timing a job changes the whole day's route, so rebuild it.
-    if (!isWorkshopLane(job.lane) && (job.address || (prev && prev.address))) {
+    // A workshop job drives nowhere: its mileage is not part of any route.
+    if (!isWorkshopLane(job.lane) && job.type !== "workshop" && (job.address || (prev && prev.address))) {
       try { await recalcDayMileage(job.date, job.lane); } catch (e) { console.warn("Mileage recalc failed", e); }
       if (prev && (prev.lane !== job.lane || prev.date !== job.date)) {
         try { await recalcDayMileage(prev.date, prev.lane); } catch (e) { console.warn("Mileage recalc failed", e); }
@@ -3493,7 +4006,12 @@
     const id = document.getElementById("jobId").value;
     if (!id) return;
     if (!confirm("Delete this job?")) return;
-    await sb.from("jobs").delete().eq("id", id);
+    const res = await sb.from("jobs").delete().eq("id", id);
+    if (isNetworkError(res)) {
+      queueOfflineWrite("jobs", "delete", null, [["eq", "id", id]]);
+      // The card must go straight away: loadJobs can't run without a signal.
+      state.jobs = state.jobs.filter(j => j.id !== id);
+    }
     await loadJobs(); closeModal(); render();
   }
 
@@ -3520,7 +4038,51 @@
   document.getElementById("requestSubmitBtn").addEventListener("click", submitJobRequest);
   document.getElementById("deleteJobBtn").addEventListener("click", deleteCurrentJob);
   document.getElementById("overlay").addEventListener("click", (e) => { if (e.target.id === "overlay") closeModal(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+  document.getElementById("searchBtn").addEventListener("click", openSearch);
+  document.getElementById("searchCloseBtn").addEventListener("click", closeSearch);
+  document.getElementById("searchOverlay").addEventListener("click", (e) => { if (e.target.id === "searchOverlay") closeSearch(); });
+  document.getElementById("searchInput").addEventListener("input", () => { searchSel = 0; renderSearchResults(); });
+  document.querySelectorAll("#searchScopes .scope-chip").forEach(b => b.addEventListener("click", () => {
+    searchScope = b.dataset.scope;
+    document.querySelectorAll("#searchScopes .scope-chip").forEach(x => x.classList.toggle("on", x === b));
+    searchSel = 0;
+    renderSearchResults();
+  }));
+  document.getElementById("jumpDate").addEventListener("change", (e) => {
+    if (!e.target.value) return;
+    gotoDate(e.target.value);
+  });
+  // One handler for Escape and the shortcuts, so Escape can tell which overlay
+  // is on top instead of closing both in one keypress.
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { if (searchIsOpen()) { closeSearch(); return; } closeModal(); return; }
+    if (searchIsOpen()) {
+      if (e.key === "ArrowDown") { e.preventDefault(); moveSearchSelection(1); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); moveSearchSelection(-1); return; }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const row = searchList[searchSel];
+        if (row) { closeSearch(); openJobModal(row.id); }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); closeSearch(); return; }
+      return;
+    }
+    handleShortcut(e);
+  });
+  // Shortcuts never fire while somebody is typing, or while another overlay owns
+  // the screen - a hidden "N" behind a modal would open a job nobody can see.
+  function handleShortcut(e) {
+    const t = e.target;
+    const tag = t && t.tagName ? t.tagName.toLowerCase() : "";
+    const typing = tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable);
+    if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); openSearch(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey || typing) return;
+    if (document.querySelector(".overlay.open")) return;
+    if (e.key === "/") { e.preventDefault(); openSearch(); return; }
+    if (e.key === "n" || e.key === "N") { if (session && session.isAdmin) openJobModal(null, fmtISODate(cursorDate)); return; }
+    if (e.key === "t" || e.key === "T") { cursorDate = startOfDay(new Date()); render(); }
+  }
 
   document.getElementById("workDayStart").addEventListener("change", (e) => { state.workDayStart = e.target.value || "08:00"; localStorage.setItem("fd.workDayStart", state.workDayStart); recomputeWorkDayMins(); render(); });
   document.getElementById("workDayEnd").addEventListener("change", (e) => { state.workDayEnd = e.target.value || "17:00"; localStorage.setItem("fd.workDayEnd", state.workDayEnd); recomputeWorkDayMins(); render(); });
@@ -3541,6 +4103,7 @@
     a.download = `field-diary-backup-${fmtISODate(new Date())}.json`;
     a.click();
   });
+  document.getElementById("exportCsvBtn").addEventListener("click", exportJobsCsv);
 
   document.getElementById("teamToggle").addEventListener("change", (e) => {
     state.activeLanes = e.target.checked ? state.lanes.map(l => l.id) : (session.laneId ? [session.laneId] : state.lanes.map(l=>l.id));
