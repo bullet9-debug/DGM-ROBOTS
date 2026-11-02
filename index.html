@@ -407,6 +407,27 @@
   .empty-state .display { font-size: 16px; color: var(--ink); margin-bottom: 6px; }
 
   @media (max-width: 860px) {
+    /* A phone is often used outdoors, where the dark palette is hard to read.
+       Keep the light colours on phones even when the phone is set to dark mode.
+       An explicit data-theme="dark" still wins, so a future toggle can opt in. */
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --paper: #EEEBE2;
+      --paper-raised: #F7F5EE;
+      --ink: #1E2620;
+      --ink-soft: #52584F;
+      --line: #C9C3B3;
+      --line-soft: #DAD5C6;
+      --green: #3F6B4C;
+      --green-soft: #E4ECE4;
+      --steel: #4E6373;
+      --steel-soft: #E6ECEF;
+      --amber: #B9812E;
+      --amber-soft: #F3E6CD;
+      --danger: #A5433A;
+      --danger-soft: #F3DEDA;
+      --shadow: 0 1px 2px rgba(30,38,32,0.08), 0 4px 14px rgba(30,38,32,0.06);
+    }
     .shell { flex-direction: column; }
     /* On a phone the diary comes first and the settings rail moves below it, so
        opening the page lands on the jobs instead of on settings and exports. */
@@ -3641,6 +3662,11 @@
         ? `<button class="ghost" data-setup-tech-admin="${t.id}" data-setup-admin="1" style="padding:4px 8px; font-size:11.5px;">Make technician</button>`
         : `<button class="ghost" data-setup-tech-role="${t.id}" data-to-viewer="${viewer ? "0" : "1"}" style="padding:4px 8px; font-size:11.5px;">${viewer ? "Make team member" : "Make viewer"}</button>
            <button class="ghost" data-setup-tech-admin="${t.id}" data-setup-admin="0" style="padding:4px 8px; font-size:11.5px;">Make office</button>`;
+      // Removing yourself would lock you out mid-session, so the button is
+      // only offered for other people.
+      const removeBtn = t.id === session.id
+        ? ""
+        : `<button class="ghost" data-setup-tech-delete="${t.id}" style="padding:4px 8px; font-size:11.5px; color:var(--danger);">Remove</button>`;
       return `<tr>
         <td>${escapeHtml(t.name)}</td>
         <td>${laneCell}</td>
@@ -3648,9 +3674,10 @@
         <td>${role}</td>
         <td style="text-align:right; white-space:nowrap;">
           <button class="ghost" data-setup-tech-rename="${t.id}" style="padding:4px 8px; font-size:11.5px;">Rename</button>
-          ${emailBtn}
-          ${roleBtn}
-        </td>
+           ${emailBtn}
+           ${roleBtn}
+           ${removeBtn}
+         </td>
       </tr>`;
     }).join("");
 
@@ -3976,6 +4003,25 @@
         : `${t.name} is now ${makeAdmin ? "office" : "a technician"}.`);
       await loadTechs();
       render();
+    }));
+
+    el.querySelectorAll("[data-setup-tech-delete]").forEach(b => b.addEventListener("click", async () => {
+      clearSetupError();
+      const id = b.getAttribute("data-setup-tech-delete");
+      const t = state.techs.find(x => x.id === id);
+      if (!t) return;
+      if (t.id === session.id) return notify("You can't remove your own login.", 7000);
+      const admins = state.techs.filter(x => x.is_admin);
+      if (t.is_admin && admins.length <= 1) return notify("This is the only office login — make someone else office before removing it.", 8000);
+      const lane = t.lane_id ? laneById(t.lane_id) : null;
+      const signIn = t.email ? ` ${t.email} will no longer be able to sign in.` : "";
+      const where = lane ? ` Their ${lane.name} diary column stays, and jobs already booked on it are kept.` : "";
+      if (!confirm(`Remove ${t.name}?${signIn}${where}\n\nThis can't be undone from here.`)) return;
+      const { error } = await sb.from("techs").delete().eq("id", id);
+      if (error) return fail("Removing that login", error);
+      await loadTechs();
+      render();
+      notify(`${t.name} removed.${lane ? ` Their ${lane.name} column is still on the diary.` : ""}`, 9000);
     }));
   }
 
