@@ -408,7 +408,10 @@
 
   @media (max-width: 860px) {
     .shell { flex-direction: column; }
-    .rail { width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; border-right: none; border-bottom: 1px solid var(--line); }
+    /* On a phone the diary comes first and the settings rail moves below it, so
+       opening the page lands on the jobs instead of on settings and exports. */
+    .main { order: 1; }
+    .rail { order: 2; width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; border-right: none; border-top: 1px solid var(--line); }
     .rail-foot { margin-top: 0; flex-direction: row; }
     .day-lanes { grid-template-columns: 1fr; }
     .install-grid { grid-template-columns: 1fr; }
