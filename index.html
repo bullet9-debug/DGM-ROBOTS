@@ -401,7 +401,7 @@
   .status-planned { background: var(--steel-soft); color: var(--steel); }
   .status-sent { background: var(--amber-soft); color: var(--amber); }
   .status-confirmed { background: var(--green-soft); color: var(--green); }
-  .confirm-tick { color: var(--green); font-weight: 800; margin-left: 4px; }
+  .confirm-tick { color: var(--green); font-weight: 800; margin-right: 4px; }
 
   .empty-state { text-align: center; padding: 60px 20px; color: var(--ink-soft); }
   .empty-state .display { font-size: 16px; color: var(--ink); margin-bottom: 6px; }
@@ -422,8 +422,32 @@
     .view-switch { flex-wrap: wrap; }
     .view-switch button { padding: 6px 8px; }
   }
+  /* Time clock: one running timer per person, visible from any view. */
+  .clock-strip { display: none; margin: 10px 24px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-raised); font-size: 12.5px; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .clock-strip.on { display: flex; }
+  .clock-strip.running { border-color: var(--green); background: var(--green-soft); }
+  .clock-strip .clock-live { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .clock-strip .clock-warn { color: var(--danger); font-weight: 700; }
+  .clock-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-soft); flex-shrink: 0; }
+  .clock-dot.live { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+  .clock-box { display: none; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 12px; background: var(--paper-raised); }
+  .clock-box.on { display: block; }
+  .clock-box.running { border-color: var(--green); background: var(--green-soft); }
+  .clock-live { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .clock-tag { font-size: 10px; background: var(--green-soft); color: var(--green); padding: 1px 5px; border-radius: 6px; font-weight: 700; }
+  .clock-tag.live { animation: clockPulse 2s ease-in-out infinite; }
+  @keyframes clockPulse { 50% { opacity: .55; } }
+  .times-table td, .times-table th { white-space: nowrap; }
+  .times-table td.num, .times-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .times-over { color: var(--danger); font-weight: 700; }
+  .times-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .times-actions button { padding: 4px 8px; font-size: 11.5px; }
+  .times-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .times-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--paper-raised); }
+  .times-card b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .times-card span { font-size: 11.5px; color: var(--ink-soft); }
   @media print {
-    .rail, .topbar, .chase-banner, .modal-actions, #overlay, #loginGate, #requestOverlay, #searchOverlay, #toast { display: none !important; }
+    .rail, .topbar, .clock-strip, .chase-banner, .modal-actions, #overlay, #loginGate, #requestOverlay, #searchOverlay, #toast { display: none !important; }
     .content { padding: 0; overflow: visible; }
     body { background: #fff; color: #000; }
   }
@@ -494,8 +518,8 @@
           <button data-view="month">Month</button>
           <button data-view="week">Week</button>
           <button data-view="day">Day</button>
-          <button data-view="bays">Workshop</button>
           <button data-view="mileage" id="mileageTabBtn">Mileage</button>
+          <button data-view="times" id="timesTabBtn" style="display:none;">Times</button>
           <button data-view="followup" id="followupTabBtn">Follow-up<span id="followupBadge" class="nav-badge" style="display:none;"></span></button>
           <button data-view="requests" id="requestsTabBtn" style="display:none;">Requests<span id="requestsBadge" class="nav-badge" style="display:none;"></span></button>
           <button data-view="setup" id="setupTabBtn" style="display:none;">Setup</button>
@@ -505,6 +529,7 @@
       </div>
     </div>
 
+    <div id="clockStrip" class="clock-strip"></div>
     <div id="chaseBanner" class="chase-banner" style="display:none;"></div>
     <div class="content" id="content"></div>
   </div>
@@ -518,6 +543,17 @@
     <input type="hidden" id="jobId">
     <div id="chainStrip"></div>
     <div class="chain-actions" id="chainActions"></div>
+
+    <div id="clockBox" class="clock-box">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span class="clock-dot" id="clockDot"></span>
+        <strong id="clockStatus">Not on the clock</strong>
+        <span id="clockElapsed" class="clock-live">0:00:00</span>
+        <span id="clockWho" style="font-size:12px; color:var(--ink-soft);"></span>
+        <button type="button" id="clockBtn" class="primary" style="margin-left:auto; padding:6px 12px; font-size:12px;">Clock on</button>
+      </div>
+      <div id="clockNote" style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;"></div>
+    </div>
 
     <div class="field">
       <label for="f_address">Address / postcode</label>
@@ -593,12 +629,17 @@
         <select id="f_bay"></select>
         <button type="button" class="ghost" id="f_addBayBtn" style="white-space:nowrap;">New bay</button>
       </div>
-      <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Bays come from the Workshop view. Leave blank for a drop-off that isn't occupying a bay.</div>
+      <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Optional. Leave blank for a drop-off that isn't occupying a bay.</div>
     </div>
 
     <div class="field">
       <label for="f_customer">Customer</label>
       <input type="text" id="f_customer" placeholder="Customer or site name">
+    </div>
+
+    <div class="field">
+      <label for="f_notes">Notes</label>
+      <textarea id="f_notes" rows="2" placeholder="Anything the tech needs to know on site"></textarea>
     </div>
 
     <div id="mileageSection">
@@ -676,25 +717,18 @@
           </label>
         </div>
 
-        <div class="field">
-          <label for="f_notes">Notes</label>
-          <textarea id="f_notes" rows="2"></textarea>
-        </div>
-
         <div class="field-row" id="timerRow" style="display:none;">
-          <div class="field" style="margin-bottom:0;" id="travelTimerField">
-            <label>Travel timer</label>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span id="travelTimerDisplay" style="font-variant-numeric:tabular-nums; font-weight:600;">0:00:00</span>
-              <button type="button" id="travelTimerBtn" class="ghost" style="padding:5px 9px; font-size:12px;">Start</button>
-            </div>
-          </div>
           <div class="field" style="margin-bottom:0;" id="warrantyTimerField">
-            <label>Warranty timer</label>
+            <label>Warranty claim timer</label>
             <div style="display:flex; align-items:center; gap:8px;">
               <span id="warrantyTimerDisplay" style="font-variant-numeric:tabular-nums; font-weight:600;">0:00:00</span>
               <button type="button" id="warrantyTimerBtn" class="ghost" style="padding:5px 9px; font-size:12px;">Start</button>
             </div>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>On-the-clock time</label>
+            <div id="jobClockTotal" style="font-variant-numeric:tabular-nums; font-weight:600;">0:00:00</div>
+            <div style="font-size:11px; color:var(--ink-soft); margin-top:2px;">Travel and on-site, from Clock on to Clock off</div>
           </div>
         </div>
 
@@ -868,6 +902,7 @@
         job({ date: iso(2), start_time: "10:00:00", duration_mins: 90, lane_id: "tech1", type: "fetch", customer: "E. Fake", address: "4 Pretend Way, Brixham TQ5 4DD" })
       ],
       app_settings: [{ key: "invoiced_retention_days", value: "30" }],
+      job_time_log: [],
       job_requests: [{ id: "req1", created_at: new Date().toISOString(), requested_by: "Tech 2", customer: "F. Request", type: "site_visit", notes: "Customer says it won't dock", status: "pending" }]
     };
     const noop = () => {};
@@ -896,6 +931,7 @@
             const row = { ...x };
             if (!row.id) row.id = gid();
             if (table === "job_requests" && !row.created_at) row.created_at = new Date().toISOString();
+            if (table === "job_time_log" && !row.received_at) row.received_at = new Date().toISOString();
             return row;
           });
           for (const it of items) {
@@ -1461,7 +1497,12 @@
     travelBuffer: Number(localStorage.getItem("fd.travelBuffer")) || 30,
     activeLanes: [],
     retentionDays: Number(localStorage.getItem("fd.retentionDays") || 30),
-    settingsTable: true
+    settingsTable: true,
+    // One row per clock on/off. Kept apart from jobs so the hours survive the
+    // invoiced-job purge; see supabase-time-log.sql.
+    timeLog: [],
+    timeLogReady: true,
+    jobTargets: {}
   };
   function recomputeWorkDayMins() {
     const m = timeToMins(state.workDayEnd) - timeToMins(state.workDayStart);
@@ -1472,7 +1513,13 @@
   let currentView = "month";
   // Views only the office gets. Both carry write actions, so a technician or a
   // viewer is kept out of them entirely rather than shown a read-only version.
-  const ADMIN_ONLY_VIEWS = ["mileage", "followup", "requests", "setup"];
+  const ADMIN_ONLY_VIEWS = ["mileage", "times", "followup", "requests", "setup"];
+  // A session left open longer than the working day is far more likely to be a
+  // forgotten clock-off than a real shift. It is flagged, never auto-closed -
+  // the office decides, and the flag is what stops it becoming a silent 14-hour
+  // overtime claim.
+  const CLOCK_STALE_HOURS = 10;
+  let clockStripTick = null;
   let cursorDate = startOfDay(new Date());
   let modalIsNewJob = true;
   let pendingRequestId = null;   // set when the open job modal was launched from a tech's job request
@@ -1566,11 +1613,13 @@
   function refreshTimerDisplays() {
     const id = document.getElementById("jobId").value;
     const job = state.jobs.find(j => j.id === id);
-    if (!job) return;
-    document.getElementById("travelTimerDisplay").textContent = formatElapsed(currentElapsed(job.travelActualSecs, job.travelRunningSince));
-    document.getElementById("travelTimerBtn").textContent = job.travelRunningSince ? "Stop" : "Start";
-    document.getElementById("warrantyTimerDisplay").textContent = formatElapsed(currentElapsed(job.warrantyActualSecs, job.warrantyRunningSince));
-    document.getElementById("warrantyTimerBtn").textContent = job.warrantyRunningSince ? "Stop" : "Start";
+    const wd = document.getElementById("warrantyTimerDisplay");
+    const wb = document.getElementById("warrantyTimerBtn");
+    if (job && wd && wb) {
+      wd.textContent = formatElapsed(currentElapsed(job.warrantyActualSecs, job.warrantyRunningSince));
+      wb.textContent = job.warrantyRunningSince ? "Stop" : "Start";
+    }
+    refreshClockBox(job || null);
   }
   async function toggleTimer(field) {
     if (viewerBlocked()) return;
@@ -1600,9 +1649,386 @@
     refreshTimerDisplays();
     render();
   }
-  document.getElementById("travelTimerBtn").addEventListener("click", () => toggleTimer("travel"));
   document.getElementById("warrantyTimerBtn").addEventListener("click", () => toggleTimer("warranty"));
   document.getElementById("f_warranty").addEventListener("change", () => updateJobTypeVisibility());
+
+  // ---------- Time clock ----------
+  // One clock per person, not two per job: the tech taps once when they set off
+  // and once when they finish, and that session covers travel and on-site time.
+  // It lives in its own table, not on the job, for three reasons: the hours
+  // survive the invoiced-job purge, a technician can only add or stop their own
+  // clock, and the office can correct a mistake without destroying the original
+  // start and stop times. See supabase-time-log.sql.
+  const TIME_LOG = "job_time_log";
+  const JOB_TYPES = ["install", "site_visit", "demo", "workshop", "fetch", "deliver"];
+  function lowEmail(v) { return String(v || "").toLowerCase(); }
+  function timeLogReady() { return !!state.timeLogReady; }
+  function clockedSecs(row) {
+    if (!row) return 0;
+    const start = new Date(row.started_at).getTime();
+    if (!isFinite(start)) return 0;
+    const end = row.ended_at ? new Date(row.ended_at).getTime() : Date.now();
+    if (!isFinite(end)) return 0;
+    return Math.max(0, (end - start) / 1000);
+  }
+  function adjustedSecs(row) {
+    return Math.max(0, clockedSecs(row) + (Number(row.adjust_mins) || 0) * 60);
+  }
+  function hoursText(secs) {
+    const total = Math.max(0, Math.round(secs / 60));
+    return `${Math.floor(total / 60)}h ${String(total % 60).padStart(2, "0")}m`;
+  }
+  function myOpenSession() {
+    if (!session) return null;
+    return state.timeLog.find(r => !r.ended_at && lowEmail(r.tech_email) === lowEmail(session.email)) || null;
+  }
+  function openSessions() {
+    return state.timeLog.filter(r => !r.ended_at)
+      .sort((a, b) => String(a.started_at).localeCompare(String(b.started_at)));
+  }
+  function sessionsForJob(jobId) { return state.timeLog.filter(r => r.job_id === jobId); }
+  function clockedSecsForJob(jobId) {
+    return sessionsForJob(jobId).reduce((sum, r) => sum + adjustedSecs(r), 0);
+  }
+  function sessionIsStale(row) {
+    return !row.ended_at && clockedSecs(row) > CLOCK_STALE_HOURS * 3600;
+  }
+  function canClock() { return !!session && !session.isViewer && timeLogReady(); }
+
+  async function loadTimeLog() {
+    if (!sb) return;
+    const res = await sb.from(TIME_LOG).select("*");
+    if (res.error) {
+      // A dead signal is not a missing table. Keep what we already have, or a
+      // brief drop would stop a technician clocking off.
+      if (isNetworkError(res)) return;
+      // The migration has not been run (or the schema cache is stale). Do not
+      // throw on every render; disable the clock and say so once.
+      state.timeLogReady = false;
+      state.timeLog = [];
+      return;
+    }
+    state.timeLogReady = true;
+    let rows = res.data || [];
+    // RLS already limits a technician to their own rows. Filtering here as well
+    // means a future policy slip cannot show one tech another tech's hours.
+    if (session && !session.isAdmin) {
+      rows = rows.filter(r => lowEmail(r.tech_email) === lowEmail(session.email));
+    }
+    state.timeLog = rows;
+  }
+  function patchTimeRow(row) {
+    const i = state.timeLog.findIndex(r => r.id === row.id);
+    if (i >= 0) Object.assign(state.timeLog[i], row);
+    else state.timeLog.push(row);
+  }
+  async function closeSession(row) {
+    if (!row || row.ended_at) return true;
+    const ended = new Date().toISOString();
+    row.ended_at = ended; // optimistic, so the screen stops ticking immediately
+    const res = await sb.from(TIME_LOG).update({ ended_at: ended }).eq("id", row.id);
+    if (isNetworkError(res)) {
+      queueOfflineWrite(TIME_LOG, "update", { ended_at: ended }, [["eq", "id", row.id]]);
+      return true;
+    }
+    if (res.error) {
+      row.ended_at = null;
+      notify("Couldn't stop that clock: " + res.error.message, 8000);
+      return false;
+    }
+    return true;
+  }
+  async function clockOn(jobId) {
+    if (!canClock()) {
+      if (!timeLogReady()) notify("The time clock isn't set up yet — run supabase-time-log.sql in Supabase, then reload the schema cache.", 10000);
+      return;
+    }
+    const job = state.jobs.find(j => j.id === jobId);
+    if (!job) return;
+    const open = myOpenSession();
+    if (open && open.job_id === jobId) { notify("You're already on the clock for this job.", 4000); return; }
+    // One job at a time. Clocking on the next job closes the last one at the
+    // same moment - that is what stops a forgotten clock-off becoming hours of
+    // invented overtime.
+    if (open) await closeSession(open);
+    const row = {
+      id: newUuid(), tech_email: lowEmail(session.email), tech_name: session.name, lane_id: job.lane,
+      job_id: job.id, job_number: job.jobNumber || null, customer: job.customer || null, job_type: job.type,
+      started_at: new Date().toISOString(), ended_at: null, adjust_mins: 0, note: null,
+      corrected_by: null, corrected_at: null
+    };
+    patchTimeRow(row);
+    const res = await sb.from(TIME_LOG).insert(row);
+    if (isNetworkError(res)) queueOfflineWrite(TIME_LOG, "insert", row, []);
+    else if (res.error) {
+      state.timeLog = state.timeLog.filter(r => r.id !== row.id);
+      // The one-open-per-person index is the backstop for two tabs or two
+      // phones. Say what it means instead of showing raw database wording.
+      if (String(res.error.code) === "23505" || /duplicate key/i.test(res.error.message || "")) {
+        notify("Your clock is already running on another device. Clock off there first, then try again.", 10000);
+        await loadTimeLog();
+      } else {
+        notify("Couldn't start the clock: " + res.error.message, 9000);
+      }
+      render();
+      return;
+    }
+    notify(`On the clock for ${job.jobNumber ? "#" + job.jobNumber + " " : ""}${job.customer || "the job"}.`, 5000);
+    render();
+  }
+  async function clockOff() {
+    const open = myOpenSession();
+    if (!open) return;
+    if (await closeSession(open)) {
+      const job = state.jobs.find(j => j.id === open.job_id);
+      const where = job ? (job.jobNumber ? " #" + job.jobNumber : " " + (job.customer || "")) : "";
+      notify(`Clocked off${where} — ${formatElapsed(adjustedSecs(open))} logged.`, 6000);
+    }
+    render();
+  }
+  async function adminClockOff(row) {
+    if (!session || !session.isAdmin || !row || row.ended_at) return;
+    if (!confirm(`Clock ${row.tech_name || row.tech_email} off this job now?`)) return;
+    if (await closeSession(row)) notify(`${row.tech_name || row.tech_email} clocked off.`, 5000);
+    render();
+  }
+  // A correction never overwrites the times the technician tapped. It adds a
+  // minutes adjustment and a reason, so the original evidence stays on the row.
+  async function adjustSession(row) {
+    if (!session || !session.isAdmin || !row) return;
+    const current = Math.round(adjustedSecs(row) / 60);
+    const input = prompt(`Correct ${row.tech_name || row.tech_email}'s time for ${row.job_number ? "#" + row.job_number : "this job"}.\n\nMinutes worked (currently ${current}):`, String(current));
+    if (input === null) return;
+    const mins = Math.floor(Number(input));
+    if (!isFinite(mins) || mins < 0) { notify("That isn't a number of minutes.", 5000); return; }
+    const why = prompt("Reason for the correction? (kept beside the original times)", "");
+    if (why === null) return;
+    const raw = Math.round(clockedSecs(row) / 60);
+    const patch = {
+      adjust_mins: mins - raw,
+      note: (why || "").trim() || null,
+      corrected_by: lowEmail(session.email),
+      corrected_at: new Date().toISOString()
+    };
+    const res = await sb.from(TIME_LOG).update(patch).eq("id", row.id);
+    if (isNetworkError(res)) queueOfflineWrite(TIME_LOG, "update", patch, [["eq", "id", row.id]]);
+    else if (res.error) { notify("Couldn't save the correction: " + res.error.message, 9000); return; }
+    Object.assign(row, patch);
+    notify("Correction saved. The original start and stop times are still on the record.", 8000);
+    render();
+  }
+  function refreshClockBox(job) {
+    const box = document.getElementById("clockBox");
+    if (!box) return;
+    const show = !!job && !!session && !session.isViewer && timeLogReady();
+    box.classList.toggle("on", show);
+    if (!show) return;
+    const running = sessionsForJob(job.id).find(r => !r.ended_at && lowEmail(r.tech_email) === lowEmail(session.email));
+    const openOnIt = sessionsForJob(job.id).filter(r => !r.ended_at);
+    const myOpen = myOpenSession();
+    box.classList.toggle("running", !!running);
+    document.getElementById("clockDot").classList.toggle("live", !!running);
+    document.getElementById("jobClockTotal").textContent = formatElapsed(clockedSecsForJob(job.id));
+    document.getElementById("clockStatus").textContent = running ? "On the clock for this job" : "Not on the clock";
+    document.getElementById("clockElapsed").textContent = running ? formatElapsed(clockedSecs(running)) : "";
+    document.getElementById("clockBtn").textContent = running ? "Clock off" : "Clock on";
+    document.getElementById("clockWho").textContent = openOnIt.length
+      ? `On it: ${openOnIt.map(r => r.tech_name || r.tech_email).join(", ")}` : "";
+    document.getElementById("clockNote").textContent = running
+      ? "Tap Clock off when you finish. Saving or closing the job does not stop the clock."
+      : myOpen && myOpen.job_id !== job.id
+        ? `You are still on the clock for ${myOpen.job_number ? "#" + myOpen.job_number + " " : ""}${myOpen.customer || "another job"} — clocking on here will stop that one.`
+        : "Clock on when you set off, off when you finish. Travel and on-site are one session.";
+  }
+  function renderClockStrip() {
+    const el = document.getElementById("clockStrip");
+    if (!el) return;
+    const mine = myOpenSession();
+    const all = openSessions();
+    if (!session || !timeLogReady() || (!mine && !(session.isAdmin && all.length))) {
+      el.className = "clock-strip";
+      el.innerHTML = "";
+      return;
+    }
+    el.className = "clock-strip on" + (mine ? " running" : "");
+    if (mine) {
+      const job = state.jobs.find(j => j.id === mine.job_id);
+      const label = job
+        ? (job.jobNumber ? "#" + job.jobNumber + " · " : "") + (job.customer || "job")
+        : (mine.job_number ? "#" + mine.job_number : (mine.customer || "a job"));
+      const warn = sessionIsStale(mine)
+        ? `<span class="clock-warn">still running after ${CLOCK_STALE_HOURS} hours — clock off or ask the office to fix it</span>` : "";
+      el.innerHTML = `<span class="clock-dot live"></span>
+        <span>On the clock: <strong>${escapeHtml(label)}</strong></span>
+        <span class="clock-live" id="stripClock">${formatElapsed(clockedSecs(mine))}</span>
+        ${warn}
+        <button class="ghost" id="stripClockOff" style="margin-left:auto; padding:4px 10px; font-size:12px;">Clock off</button>`;
+      el.querySelector("#stripClockOff").addEventListener("click", (e) => { e.preventDefault(); clockOff(); });
+    } else {
+      el.innerHTML = `<span class="clock-dot live"></span>
+        <span>${all.length} on the clock: <strong>${all.map(r => escapeHtml(r.tech_name || r.tech_email)).join(", ")}</strong></span>
+        <button class="ghost" id="stripTimes" style="margin-left:auto; padding:4px 10px; font-size:12px;">Open Times</button>`;
+      el.querySelector("#stripTimes").addEventListener("click", (e) => { e.preventDefault(); setView("times"); });
+    }
+  }
+  function startClockStripTick() {
+    if (clockStripTick) return;
+    clockStripTick = setInterval(() => {
+      const mine = myOpenSession();
+      const t = document.getElementById("stripClock");
+      if (t && mine) t.textContent = formatElapsed(clockedSecs(mine));
+      else if (!mine && !openSessions().length && document.getElementById("clockStrip")) renderClockStrip();
+    }, 1000);
+  }
+  document.getElementById("clockBtn").addEventListener("click", () => {
+    const id = document.getElementById("jobId").value;
+    if (!id) return;
+    const mine = sessionsForJob(id).find(r => !r.ended_at && lowEmail(r.tech_email) === lowEmail(session.email));
+    if (mine) clockOff(); else clockOn(id);
+  });
+
+  // ---------- Times (office only) ----------
+  function localDayKey(iso) { return fmtISODate(new Date(iso)); }
+  function timesSessionsForMonth() {
+    const mk = fmtISODate(cursorDate).slice(0, 7);
+    return state.timeLog.filter(r => r.started_at && localDayKey(r.started_at).slice(0, 7) === mk)
+      .sort((a, b) => String(b.started_at).localeCompare(String(a.started_at)));
+  }
+  // Time outside the configured working day - the hours that drive early/late
+  // overtime claims, kept separate from the plain total.
+  function outsideHoursSecs(row) {
+    const total = clockedSecs(row);
+    if (!row.started_at) return 0;
+    const day = startOfDay(new Date(row.started_at));
+    const winStart = new Date(day.getTime() + (timeToMins(state.workDayStart) || 0) * 60000).getTime();
+    const winEnd = new Date(day.getTime() + (timeToMins(state.workDayEnd) || 0) * 60000).getTime();
+    const a = new Date(row.started_at).getTime();
+    const b = row.ended_at ? new Date(row.ended_at).getTime() : Date.now();
+    const inside = Math.max(0, Math.min(b, winEnd) - Math.max(a, winStart)) / 1000;
+    return Math.max(0, total - inside);
+  }
+  function timesByTech(list) {
+    const out = {};
+    list.forEach(r => {
+      const key = lowEmail(r.tech_email);
+      const t = out[key] || (out[key] = { email: key, name: r.tech_name || r.tech_email || key, secs: 0, sessions: 0, outside: 0, overtime: 0, days: {} });
+      const secs = adjustedSecs(r);
+      t.secs += secs;
+      t.sessions++;
+      t.outside += outsideHoursSecs(r);
+      const d = localDayKey(r.started_at);
+      t.days[d] = (t.days[d] || 0) + secs;
+    });
+    Object.values(out).forEach(t => {
+      Object.keys(t.days).forEach(d => {
+        const over = t.days[d] - state.workDayMins * 60;
+        if (over > 0) t.overtime += over;
+      });
+    });
+    return Object.values(out).sort((a, b) => a.name.localeCompare(b.name));
+  }
+  function timesByType(list) {
+    const out = {};
+    list.filter(r => r.ended_at).forEach(r => {
+      const key = r.job_type || "site_visit";
+      const t = out[key] || (out[key] = { type: key, jobs: {}, secs: 0 });
+      t.secs += adjustedSecs(r);
+      t.jobs[r.job_id || r.id] = true;
+    });
+    return Object.keys(out).map(k => {
+      const t = out[k], jobs = Object.keys(t.jobs).length || 1;
+      return { type: k, jobs: Object.keys(t.jobs).length, avg: t.secs / jobs / 60, target: Number(state.jobTargets[k]) || 0 };
+    }).sort((a, b) => b.jobs - a.jobs);
+  }
+  function renderTimes() {
+    const el = document.getElementById("content");
+    if (!session.isAdmin) { el.innerHTML = `<div class="data-wrap"><div class="empty-hint">Times is an office view.</div></div>`; return; }
+    if (!timeLogReady()) {
+      el.innerHTML = `<div class="data-wrap"><div style="padding:34px 24px; text-align:center;">
+        <div style="font-weight:700; margin-bottom:6px;">The time clock is not set up yet</div>
+        <div style="font-size:13px; color:var(--ink-soft);">Run <b>supabase-time-log.sql</b> in the Supabase SQL editor, then reload the schema cache.<br>Nothing else in the diary is affected.</div>
+      </div></div>`;
+      return;
+    }
+    const monthLabel = cursorDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const list = timesSessionsForMonth();
+    const techs = timesByTech(list);
+    const totalSecs = techs.reduce((s, t) => s + t.secs, 0);
+    const overtime = techs.reduce((s, t) => s + t.overtime, 0);
+    const outside = techs.reduce((s, t) => s + t.outside, 0);
+    const onNow = openSessions();
+
+    let html = `<div class="times-summary">
+      <div class="times-card"><b>${hoursText(totalSecs)}</b><span>clocked in ${monthLabel}</span></div>
+      <div class="times-card"><b>${onNow.length}</b><span>on the clock right now</span></div>
+      <div class="times-card"><b class="${overtime ? "times-over" : ""}">${hoursText(overtime)}</b><span>over ${state.workDayMins / 60}h in a day</span></div>
+      <div class="times-card"><b>${hoursText(outside)}</b><span>outside ${state.workDayStart}–${state.workDayEnd}</span></div>
+    </div>`;
+
+    if (!list.length) {
+      html += `<div class="data-wrap"><div style="padding:26px; text-align:center; color:var(--ink-soft); font-size:13px;">Nobody has clocked on in ${monthLabel} yet.</div></div>`;
+    } else {
+      html += `<div class="data-wrap" style="margin-bottom:14px;"><table class="data-table times-table">
+        <thead><tr><th>Technician</th><th class="num">Sessions</th><th class="num">Clocked</th><th class="num">Outside hours</th><th class="num">Over ${state.workDayMins / 60}h</th></tr></thead><tbody>`;
+      techs.forEach(t => {
+        html += `<tr><td>${escapeHtml(t.name)}</td><td class="num">${t.sessions}</td><td class="num"><b>${hoursText(t.secs)}</b></td>
+          <td class="num">${t.outside ? hoursText(t.outside) : "—"}</td>
+          <td class="num ${t.overtime ? "times-over" : ""}">${t.overtime ? hoursText(t.overtime) : "—"}</td></tr>`;
+      });
+      html += `</tbody></table></div>`;
+
+      html += `<div class="data-wrap"><table class="data-table times-table">
+        <thead><tr><th>Date</th><th>Technician</th><th>Job</th><th>Customer</th><th>Start</th><th>End</th><th class="num">Hours</th><th class="num" title="How long after the start the server first heard about it. Large gaps usually mean no signal.">Sent</th><th></th></tr></thead><tbody>`;
+      list.slice(0, 300).forEach(r => {
+        const secs = adjustedSecs(r);
+        const over = !r.ended_at && sessionIsStale(r);
+        const lag = r.received_at ? (new Date(r.received_at).getTime() - new Date(r.started_at).getTime()) / 60000 : null;
+        const lagText = lag === null ? "—" : Math.abs(lag) < 2 ? "—" : (lag >= 0 ? "+" + Math.round(lag) + "m" : "clock ahead");
+        const corrected = r.adjust_mins ? ` <span class="tag-chain" title="${escapeHtml(r.note || "Office correction")}">corrected</span>` : "";
+        const techName = r.tech_name || r.tech_email || "";
+        html += `<tr>
+          <td>${escapeHtml(localDayKey(r.started_at))}</td>
+          <td>${escapeHtml(techName)}</td>
+          <td>${r.job_number ? "#" + escapeHtml(r.job_number) : "—"}${corrected}</td>
+          <td>${escapeHtml(r.customer || "—")}</td>
+          <td>${new Date(r.started_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</td>
+          <td class="${over ? "times-over" : ""}">${r.ended_at ? new Date(r.ended_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "running"}</td>
+          <td class="num ${over ? "times-over" : ""}">${formatElapsed(secs)}</td>
+          <td class="num">${lagText}</td>
+          <td><div class="times-actions">
+            ${!r.ended_at
+              ? `<button class="ghost" data-clock-force-off="${escapeHtml(r.id)}">Clock off</button>`
+              : `<button class="ghost" data-clock-adjust="${escapeHtml(r.id)}">Adjust</button>`}
+          </div></td>
+        </tr>`;
+      });
+      html += `</tbody></table></div>`;
+      if (list.length > 300) html += `<div class="day-total-line">Showing the newest 300 of ${list.length} sessions this month.</div>`;
+
+      const types = timesByType(list);
+      if (types.length) {
+        html += `<div class="data-wrap" style="margin-top:16px;"><table class="data-table times-table">
+          <thead><tr><th>Efficiency by job type</th><th class="num">Jobs</th><th class="num">Average</th><th class="num">Target</th><th class="num">Difference</th></tr></thead><tbody>`;
+        types.forEach(t => {
+          const diff = t.target ? t.avg - t.target : null;
+          html += `<tr><td>${escapeHtml(typeLabel(t.type))}</td><td class="num">${t.jobs}</td><td class="num">${Math.round(t.avg)} min</td>
+            <td class="num">${t.target ? t.target + " min" : "—"}</td>
+            <td class="num ${diff !== null && diff > 0 ? "times-over" : ""}">${diff === null ? `<span style="color:var(--ink-soft)">set a target in Setup</span>` : (diff > 0 ? "+" : "") + Math.round(diff) + " min"}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+        html += `<div class="day-total-line">Only finished sessions count towards efficiency. Averages are per job, not per visit, so a chained job with two clock-ons counts once.</div>`;
+      }
+    }
+    el.innerHTML = html;
+    el.querySelectorAll("[data-clock-force-off]").forEach(b => b.addEventListener("click", () => {
+      const row = state.timeLog.find(r => r.id === b.dataset.clockForceOff);
+      if (row) adminClockOff(row);
+    }));
+    el.querySelectorAll("[data-clock-adjust]").forEach(b => b.addEventListener("click", () => {
+      const row = state.timeLog.find(r => r.id === b.dataset.clockAdjust);
+      if (row) adjustSession(row);
+    }));
+  }
 
   // ---------- Access gate ----------
   // A viewer sees the whole diary and can ask for work, but must never be able
@@ -1821,8 +2247,14 @@
     // now. Hiding the tab is not the lock - the guard in setView is - but a hidden
     // tab nobody can click back into is the first half of doing it properly.
     document.getElementById("mileageTabBtn").style.display = session.isAdmin ? "" : "none";
+    document.getElementById("timesTabBtn").style.display = session.isAdmin ? "" : "none";
     document.getElementById("followupTabBtn").style.display = session.isAdmin ? "" : "none";
-    if (!session.isAdmin && ADMIN_ONLY_VIEWS.includes(currentView)) currentView = "day";
+    // A technician works from their day, not the month. Land them on today's
+    // day view whatever view the office left the app on.
+    if (!session.isAdmin) {
+      currentView = "day";
+      cursorDate = startOfDay(new Date());
+    }
 
     await probeCapabilities();
     await loadLanes();
@@ -1830,10 +2262,12 @@
     await loadJobRequests();
     await loadBays();
     await loadTechs();
+    await loadTimeLog();
     await rollForwardWorkshopJobs();
     await loadSettings();
     await purgeInvoiced();
     subscribeRealtime();
+    startClockStripTick();
     render();
     // Anything saved while the signal was down goes out now that we're in.
     if (offlineQueueRead().length) replayOfflineQueue();
@@ -1945,7 +2379,7 @@
     const q = offlineQueueRead();
     if (!q.length) return;
     offlineReplaying = true;
-    let sent = 0, dropped = 0, i = 0;
+    let sent = 0, dropped = 0, i = 0, clockDropped = false;
     const reloads = new Set();
     try {
       for (; i < q.length; i++) {
@@ -1970,6 +2404,7 @@
         if (isNetworkError(res)) break; // still no signal - keep this item and everything after it
         if (res.error) {
           console.warn("Offline queue: refused, dropped:", item, res.error.message);
+          if (item.table === "job_time_log") clockDropped = true;
           dropped++;
           continue;
         }
@@ -1982,9 +2417,13 @@
     offlineQueueSave(q.slice(i));
     if (sent) {
       if (reloads.has("jobs")) { try { await loadJobs(); } catch (e) { /* the screen already shows the queued change */ } }
+      if (reloads.has("job_time_log")) { try { await loadTimeLog(); } catch (e) { /* the screen already shows the queued clock */ } }
       if (reloads.has("job_requests")) { try { await loadJobRequests(); } catch (e) { /* nothing extra to show */ } }
       render();
     }
+    // A refused clock write must not leave the screen claiming a session that
+    // the database never accepted.
+    if (clockDropped) { try { await loadTimeLog(); } catch (e) {} render(); }
     const bits = [];
     if (sent) bits.push(sent === 1 ? "Sent the change you saved offline." : `Sent ${sent} changes you saved offline.`);
     if (dropped) bits.push(`${dropped} saved change${dropped === 1 ? "" : "s"} couldn't be sent and ${dropped === 1 ? "was" : "were"} dropped — open the job and check before re-typing it.`);
@@ -2025,7 +2464,7 @@
       await loadJobs();
       const where = targetStr === todayStr ? "to today" : `to ${fmtUKDate(targetStr)}`;
       notify(`Moved ${moved} unfinished workshop job${moved === 1 ? "" : "s"} ${where} so they don't go stale.`
-        + (clashes ? ` ${clashes} now share a bay — check the Workshop view.` : "")
+        + (clashes ? ` ${clashes} now share a bay — check the diary.` : "")
         + " Tick Attended when the work is done.");
     }
     return moved;
@@ -2036,6 +2475,7 @@
       .on("postgres_changes", { event: "*", schema: "public", table: "lanes" }, async () => { await loadLanes(); render(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "job_requests" }, async () => { await loadJobRequests(); render(); })
       .on("postgres_changes", { event: "*", schema: "public", table: "bays" }, async () => { await loadBays(); render(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "job_time_log" }, async () => { await loadTimeLog(); render(); })
       .subscribe();
   }
 
@@ -2137,6 +2577,7 @@
       label.textContent = `${ws.toLocaleDateString(undefined,{day:"numeric",month:"short"})} – ${we.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})}`;
     } else if (currentView === "bays") label.textContent = "Workshop bays";
     else if (currentView === "mileage") label.textContent = "Mileage claims";
+    else if (currentView === "times") label.textContent = `Time clock — ${cursorDate.toLocaleDateString(undefined, { month: "long", year: "numeric" })}`;
     else if (isFollowUp) label.textContent = "Past-date jobs";
     else if (currentView === "setup") label.textContent = "Setup";
     else if (isRequests) label.textContent = "Requests from the team";
@@ -2154,6 +2595,7 @@
     // Keep the picker in step with wherever prev/next/today left the cursor.
     const jump = document.getElementById("jumpDate");
     if (jump) jump.value = fmtISODate(cursorDate);
+    renderClockStrip();
   }
 
   // ---------- Month view ----------
@@ -2197,7 +2639,7 @@
       dayJobs.slice(0,3).forEach(j => {
         const lane = laneById(j.lane) || {color:"#999"};
         const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} ` : "";
-        html += `<div class="chip" style="border-color:${lane.color}; background:${lane.color}18;" data-job="${j.id}">${j.time?escapeHtml(j.time)+" ":""}${num}${escapeHtml(j.customer||typeLabel(j.type))}${confirmedTick(j)}</div>`;
+        html += `<div class="chip" style="border-color:${lane.color}; background:${lane.color}18;" data-job="${j.id}">${confirmedTick(j)}${j.time?escapeHtml(j.time)+" ":""}${num}${escapeHtml(j.customer||typeLabel(j.type))}</div>`;
       });
       if (dayJobs.length > 3) html += `<div class="chip-more">+${dayJobs.length-3} more</div>`;
       html += `</div>`;
@@ -2239,7 +2681,7 @@
           const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
           body += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
             <div class="job-time">${j.time?escapeHtml(j.time):"—"}</div>
-            <div class="job-cust">${num}${escapeHtml(j.customer||typeLabel(j.type))}${confirmedTick(j)}${apprenticeTag(j)}</div>
+            <div class="job-cust">${confirmedTick(j)}${num}${escapeHtml(j.customer||typeLabel(j.type))}${apprenticeTag(j)}</div>
             <div class="job-meta">${typeLabel(j.type)}</div>
           </div>`;
         });
@@ -2297,17 +2739,29 @@
       if (laneMiles) html += `<div class="day-total-line" style="border-top:none;padding:0 0 4px;">${laneMiles.toFixed(1)} mi driven · £${money(laneMiles).toFixed(2)}</div>`;
       jobs.forEach(j => {
         const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
+        const mine = canClock() ? sessionsForJob(j.id).find(r => !r.ended_at && lowEmail(r.tech_email) === lowEmail(session.email)) : null;
+        const logged = clockedSecsForJob(j.id);
+        let clockHtml = "";
+        if (canClock()) {
+          clockHtml = mine
+            ? `<button type="button" class="clock-tag live" data-clock-off="${escapeHtml(j.id)}" style="border:none; cursor:pointer;">● ${formatElapsed(clockedSecs(mine))} · Clock off</button>`
+            : `<button type="button" class="ghost" data-clock-on="${escapeHtml(j.id)}" style="padding:2px 7px; font-size:10.5px;">Clock on</button>`;
+          if (logged && !mine) clockHtml += `<span class="clock-tag" title="Total clocked on this job">${hoursText(logged)} logged</span>`;
+        } else if (logged) {
+          clockHtml = `<span class="clock-tag" title="Total clocked on this job">${hoursText(logged)} logged</span>`;
+        }
         html += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
           <div class="job-time">${j.time?escapeHtml(j.time):"—"} · ${formatDuration(j.duration||0, state.workDayMins)}${j.travel && !(j.type === "workshop" || isWorkshopLane(j.lane))?` (+${j.travel} travel)`:""}</div>
-          <div class="job-cust">${num}${escapeHtml(j.customer||"Untitled job")}${confirmedTick(j)}${apprenticeTag(j)}${warrantyTag(j)}</div>
+          <div class="job-cust">${confirmedTick(j)}${num}${escapeHtml(j.customer||"Untitled job")}${apprenticeTag(j)}${warrantyTag(j)}</div>
           ${(j.make||j.model)?`<div class="job-meta">${escapeHtml([j.make,j.model].filter(Boolean).join(" "))}${j.serial?" · S/N "+escapeHtml(j.serial):""}</div>`:""}
           <div class="job-meta">${typeLabel(j.type)}${j.address?` · ${escapeHtml(j.address)} · <a href="${mapsUrl(j.address)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--green); font-weight:600; text-decoration:none;">Maps ↗</a>`:""}</div>
-          <div class="job-meta" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:4px;">
+          <div class="job-meta" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:4px; align-items:center;">
             <span class="status-pill status-${j.status||"planned"}">${statusLabel(j.status)}</span>
             ${!isWorkshopLane(lane.id) && j.mileage ? `<span class="tag-miles">${Number(j.mileage).toFixed(1)} mi</span>` : ""}
             ${j.workshopBay ? `<span class="tag-bay">${escapeHtml(j.workshopBay)}</span>` : ""}
             ${j.linkRole ? `<span class="tag-chain">${escapeHtml(linkRoleLabel(j.linkRole))}</span>` : ""}
             ${j.followUpOn ? `<span class="tag-chain">Follow-up ${escapeHtml(fmtUKDate(j.followUpOn))}</span>` : ""}
+            ${clockHtml}
           </div>
         </div>`;
       });
@@ -2318,6 +2772,8 @@
     el.innerHTML = html;
     el.querySelectorAll(".job-block").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
     el.querySelectorAll("[data-goto-followup]").forEach(a => a.addEventListener("click", (e) => { e.preventDefault(); setView("followup"); }));
+    el.querySelectorAll("[data-clock-on]").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); clockOn(b.dataset.clockOn); }));
+    el.querySelectorAll("[data-clock-off]").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); clockOff(); }));
     if (session.isAdmin) el.querySelectorAll(".day-lane-body").forEach(c => c.addEventListener("click", (e) => { if (e.target.closest(".job-block")) return; openJobModal(null, c.dataset.date, c.dataset.lane); }));
   }
 
@@ -2339,6 +2795,26 @@
     if (error) { state.settingsTable = false; return; }
     state.settingsTable = true;
     if (data && data.value !== null && data.value !== "" && !isNaN(Number(data.value))) state.retentionDays = Number(data.value);
+    // Efficiency targets live in the same key/value table, as one JSON value.
+    const t = await sb.from("app_settings").select("*").eq("key", "job_targets").maybeSingle();
+    if (!t.error && t.data && t.data.value) {
+      try {
+        const parsed = JSON.parse(t.data.value);
+        if (parsed && typeof parsed === "object") state.jobTargets = parsed;
+      } catch (e) { /* a malformed value is ignored, not a reason to break the page */ }
+    }
+  }
+  async function saveJobTargets(targets) {
+    state.jobTargets = targets;
+    const value = JSON.stringify(targets);
+    if (!state.settingsTable) {
+      notify("Saved on this browser only — run supabase-invoiced.sql so every device shares it.", 8000);
+      return;
+    }
+    const upd = await sb.from("app_settings").update({ value }).eq("key", "job_targets").select();
+    if (!upd.error && upd.data && upd.data.length) return;
+    const ins = await sb.from("app_settings").insert({ key: "job_targets", value });
+    if (ins.error) notify("Couldn't save the targets: " + ins.error.message, 9000);
   }
   async function saveRetention(days) {
     state.retentionDays = days;
@@ -2407,7 +2883,7 @@
     const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
     return `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
       <div class="job-time">${escapeHtml(j.date)}${j.time?" · "+escapeHtml(j.time):""}</div>
-      <div class="job-cust">${num}${escapeHtml(j.customer||typeLabel(j.type))}${confirmedTick(j)}${warrantyTag(j)}</div>
+      <div class="job-cust">${confirmedTick(j)}${num}${escapeHtml(j.customer||typeLabel(j.type))}${warrantyTag(j)}</div>
       <div class="job-meta">${escapeHtml(lane.name)} · ${typeLabel(j.type)}</div>
       <span class="status-pill status-${j.status||"planned"}" style="margin-top:4px;">${statusLabel(j.status)}</span>
       ${followUpAction(j)}
@@ -2563,7 +3039,7 @@
     const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
     return `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
       <div class="job-time">${escapeHtml(fmtUKDate(j.date))}${j.time ? " · " + escapeHtml(j.time) : ""} · ${escapeHtml(lane.name)} · ${typeLabel(j.type)}</div>
-      <div class="job-cust">${num}${escapeHtml(j.customer || "Untitled job")}${confirmedTick(j)}${warrantyTag(j)}</div>
+      <div class="job-cust">${confirmedTick(j)}${num}${escapeHtml(j.customer || "Untitled job")}${warrantyTag(j)}</div>
       ${j.address ? `<div class="job-meta">${escapeHtml(j.address)}</div>` : ""}
       <div class="job-meta" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:4px; align-items:center;">
         <span class="status-pill status-${j.status || "planned"}">${statusLabel(j.status)}</span>
@@ -2635,7 +3111,7 @@
   // (Follow-up, Mileage, Requests, Setup) have nothing to show for it, so land
   // on the day view instead of silently doing nothing.
   function gotoDate(dateStr, wantView) {
-    const viewsWithDate = ["month", "week", "day", "bays"];
+    const viewsWithDate = ["month", "week", "day"];
     let v = wantView || currentView;
     if (!viewsWithDate.includes(v)) v = "day";
     cursorDate = new Date(dateStr + "T00:00:00");
@@ -2666,6 +3142,7 @@
     ["address",        j => j.address],
     ["technician",     j => { const l = laneById(j.lane); return l ? l.name : j.lane; }],
     ["duration_mins",  j => j.duration],
+    ["clocked_hours",  j => { const s = clockedSecsForJob(j.id); return s ? (s / 3600).toFixed(2) : ""; }],
     ["travel_mins",    j => j.travel],
     ["mileage_miles",  j => j.mileage],
     ["make",           j => j.make],
@@ -2743,7 +3220,7 @@
           js.forEach(j => {
             const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} ` : "";
             html += `<div class="bay-job" style="border-color:${col};" data-job="${j.id}" title="${escapeAttr(typeLabel(j.type) + (j.customer ? " · " + j.customer : ""))}">
-              <b>${j.time ? escapeHtml(j.time) : "—"}</b> ${num}${escapeHtml(j.customer || typeLabel(j.type))}${confirmedTick(j)}
+              ${confirmedTick(j)}<b>${j.time ? escapeHtml(j.time) : "—"}</b> ${num}${escapeHtml(j.customer || typeLabel(j.type))}
             </div>`;
           });
           html += `</td>`;
@@ -3206,11 +3683,28 @@
         </section>
 
         <section class="setup-card">
+          <h3>Time clock</h3>
+          <p class="setup-note">One tap when a technician sets off, one when they finish. Travel and on-site are a single session, and clocking on a new job stops the last one. A technician can only start and stop their own clock — only the office can correct a time, and the original start and stop are kept beside the correction.</p>
+          ${state.timeLogReady ? "" : `<div style="border:1px solid var(--amber); background:var(--amber-soft); border-radius:var(--radius); padding:8px 10px; font-size:12.5px; margin-bottom:12px;">Not set up yet. Run <b>supabase-time-log.sql</b> in the Supabase SQL editor, then reload the schema cache.</div>`}
+          <div class="field-row" style="flex-wrap:wrap;">
+            ${JOB_TYPES.map(t => `<div class="field" style="min-width:120px;">
+              <label for="target_${t}">${escapeHtml(typeLabel(t))} (min)</label>
+              <input type="number" id="target_${t}" min="0" step="5" value="${state.jobTargets[t] || ""}" placeholder="no target">
+            </div>`).join("")}
+          </div>
+          <div class="setup-actions">
+            <button class="primary" id="setupSaveTargets">Save targets</button>
+            <span class="setup-hint">Used for the efficiency table in Times. Blank means no target.</span>
+          </div>
+        </section>
+
+        <section class="setup-card">
           <h3>How the diary behaves</h3>
           <ul class="setup-note" style="padding-left:18px; margin:0;">
             <li>Unfinished workshop jobs are pulled forward to today automatically, so nothing goes stale. Tick <b>Attended</b> to settle one for good.</li>
             <li>Once a day passes, its jobs leave the diary and move to <b>Follow-up</b>, split into to invoice and needs rebooking.</li>
             <li>Mileage is chained job to job from the depot; switch a job to a round trip or type real miles if the route's wrong.</li>
+            <li>Clock-on times are recorded with the time the server first heard them, so a start backdated by hand is visible in <b>Times</b>.</li>
           </ul>
         </section>
       </div>`;
@@ -3220,6 +3714,18 @@
 
   function wireSetupActions() {
     const el = document.getElementById("content");
+    const saveTargets = el.querySelector("#setupSaveTargets");
+    if (saveTargets) saveTargets.addEventListener("click", async () => {
+      const next = {};
+      JOB_TYPES.forEach(t => {
+        const input = el.querySelector("#target_" + t);
+        const v = Math.round(Number(input && input.value));
+        if (v > 0) next[t] = v;
+      });
+      await saveJobTargets(next);
+      notify("Efficiency targets saved.", 4000);
+      render();
+    });
     // A toast disappears after a few seconds, and a write that the database
     // refused is exactly the thing you must not miss. Put it on the page.
     const clearSetupError = () => {
@@ -3594,6 +4100,7 @@
     else if (currentView === "day") renderDay();
     else if (currentView === "bays") renderBays();
     else if (currentView === "mileage") renderMileage();
+    else if (currentView === "times") renderTimes();
     else if (currentView === "requests") renderRequests();
     else if (currentView === "setup") renderSetup();
     else renderFollowUp();
@@ -3670,31 +4177,28 @@
     if (travelField) travelField.style.display = hide;
     const mileageSection = document.getElementById("mileageSection");
     if (mileageSection) mileageSection.style.display = hide;
-    const travelTimerField = document.getElementById("travelTimerField");
-    if (travelTimerField) travelTimerField.style.display = hide;
     // Install detail only makes sense on installs; a demo or site visit shouldn't carry a wire spec.
     const showInstall = capCol("install_details") && type === "install";
     const wrap = document.getElementById("installWrap");
     const det = document.getElementById("installDetails");
     if (det) {
       det.style.display = showInstall ? "" : "none";
-      // Open it by default for an install, but never fight the user once they've
-      // opened or closed it themselves. A viewer never gets it opened for them:
-      // it is a wall of locked fields spanning most of the form, and they have no
-      // reason to be looking at it.
-      if (showInstall && !touchedSections[sectionKey("installDetails")]) det.open = viewerNow() ? false : !modalIsNewJob;
+      // Closed by default for everyone. Once somebody opens it themselves,
+      // leave it how they left it rather than snapping it shut on a re-render.
+      if (showInstall && !touchedSections[sectionKey("installDetails")]) det.open = false;
     }
     if (wrap) wrap.style.display = showInstall ? "" : "none";
-    // Both timers share one row: a new job has nothing to time yet, and a
-    // workshop job has no travel timer - show the row when a job is open and
-    // either timer is still on screen.
+    // The clock is one session per person, so it applies to every saved job
+    // including workshop ones. Only the warranty claim timer is conditional.
     const warrantyOn = document.getElementById("f_warranty").checked;
     const warrantyTimerField = document.getElementById("warrantyTimerField");
     if (warrantyTimerField) warrantyTimerField.style.display = warrantyOn ? "" : "none";
     const timerRow = document.getElementById("timerRow");
     if (timerRow && !viewerNow()) {
-      timerRow.style.display = (document.getElementById("jobId").value && (!isWs || warrantyOn)) ? "" : "none";
+      timerRow.style.display = document.getElementById("jobId").value ? "" : "none";
     }
+    const job = state.jobs.find(j => j.id === document.getElementById("jobId").value);
+    refreshClockBox(job || null);
   }
   function updateApprenticeVisibility() {
     const lane = document.getElementById("f_lane").value;
@@ -3803,6 +4307,7 @@
     }
     renderInstallFields(job);
     renderChainStrip(job);
+    refreshClockBox(job || null);
     // If a collapsed section already holds data for this job, open it once so
     // saved notes/machine details are never hidden on open. After that the
     // section stays wherever the user left it.
@@ -3818,7 +4323,7 @@
           // Only genuine text/data presence should pull the section open. A travel
           // time of 0 is a normal value, not a reason to force it open for every job.
           const hasHiddenData = job && (
-            !!(job.notes || job.customerEmail || job.make || job.model || job.serial || job.warranty)
+            !!(job.customerEmail || job.make || job.model || job.serial || job.warranty)
             || !!job.apprentice
             || !!(job.installDetails && Object.keys(job.installDetails || {}).length)
           );
@@ -4018,13 +4523,13 @@
   // ---------- Wiring ----------
   document.querySelectorAll(".view-switch button").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
   document.getElementById("prevBtn").addEventListener("click", () => {
-    if (currentView === "month") cursorDate = new Date(cursorDate.getFullYear(), cursorDate.getMonth()-1, 1);
+    if (currentView === "month" || currentView === "times") cursorDate = new Date(cursorDate.getFullYear(), cursorDate.getMonth()-1, 1);
     else if (currentView === "week") cursorDate = addDays(cursorDate, -7);
     else cursorDate = addDays(cursorDate, -1);
     render();
   });
   document.getElementById("nextBtn").addEventListener("click", () => {
-    if (currentView === "month") cursorDate = new Date(cursorDate.getFullYear(), cursorDate.getMonth()+1, 1);
+    if (currentView === "month" || currentView === "times") cursorDate = new Date(cursorDate.getFullYear(), cursorDate.getMonth()+1, 1);
     else if (currentView === "week") cursorDate = addDays(cursorDate, 7);
     else cursorDate = addDays(cursorDate, 1);
     render();
