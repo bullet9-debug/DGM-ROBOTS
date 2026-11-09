@@ -458,6 +458,12 @@
   .clock-box.on { display: block; }
   .clock-box.running { border-color: var(--green); background: var(--green-soft); }
   .clock-live { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .clock-timers { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .clock-timer { flex: 1 1 140px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; background: var(--paper); }
+  .clock-timer.running { border-color: var(--green); }
+  .clock-timer-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--ink-soft); }
+  .clock-timer-top strong { font-variant-numeric: tabular-nums; font-size: 15px; color: var(--ink); }
+  .clock-timer button { margin-top: 6px; width: 100%; padding: 5px 8px; font-size: 12px; }
   .clock-tag { font-size: 10px; background: var(--green-soft); color: var(--green); padding: 1px 5px; border-radius: 6px; font-weight: 700; }
   .clock-tag.live { animation: clockPulse 2s ease-in-out infinite; }
   @keyframes clockPulse { 50% { opacity: .55; } }
@@ -572,9 +578,17 @@
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <span class="clock-dot" id="clockDot"></span>
         <strong id="clockStatus">Not on the clock</strong>
-        <span id="clockElapsed" class="clock-live">0:00:00</span>
         <span id="clockWho" style="font-size:12px; color:var(--ink-soft);"></span>
-        <button type="button" id="clockBtn" class="primary" style="margin-left:auto; padding:6px 12px; font-size:12px;">Clock on</button>
+      </div>
+      <div class="clock-timers">
+        <div class="clock-timer" id="travelTimerField">
+          <div class="clock-timer-top"><span>Travel to this job</span><strong id="travelTimerDisplay">0:00:00</strong></div>
+          <button type="button" id="travelTimerBtn" class="ghost">Start travel</button>
+        </div>
+        <div class="clock-timer" id="onsiteTimerField">
+          <div class="clock-timer-top"><span>On site at this job</span><strong id="onsiteTimerDisplay">0:00:00</strong></div>
+          <button type="button" id="clockBtn" class="primary">Start on site</button>
+        </div>
       </div>
       <div id="clockNote" style="font-size:11.5px; color:var(--ink-soft); margin-top:6px;"></div>
     </div>
@@ -748,11 +762,6 @@
               <span id="warrantyTimerDisplay" style="font-variant-numeric:tabular-nums; font-weight:600;">0:00:00</span>
               <button type="button" id="warrantyTimerBtn" class="ghost" style="padding:5px 9px; font-size:12px;">Start</button>
             </div>
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label>On-the-clock time</label>
-            <div id="jobClockTotal" style="font-variant-numeric:tabular-nums; font-weight:600;">0:00:00</div>
-            <div style="font-size:11px; color:var(--ink-soft); margin-top:2px;">Travel and on-site, from Clock on to Clock off</div>
           </div>
         </div>
 
@@ -1677,12 +1686,12 @@
   document.getElementById("f_warranty").addEventListener("change", () => updateJobTypeVisibility());
 
   // ---------- Time clock ----------
-  // One clock per person, not two per job: the tech taps once when they set off
-  // and once when they finish, and that session covers travel and on-site time.
-  // It lives in its own table, not on the job, for three reasons: the hours
-  // survive the invoiced-job purge, a technician can only add or stop their own
-  // clock, and the office can correct a mistake without destroying the original
-  // start and stop times. See supabase-time-log.sql.
+  // Two timers per person, in the same table: travel and on-site. Starting one
+  // closes the other, so a technician cannot be travelling and on site at once,
+  // and a forgotten timer cannot turn into invented overtime. The times live in
+  // their own table so they survive the invoiced-job purge, and the office can
+  // correct a row without destroying the original start and stop times.
+  // See supabase-time-log.sql and supabase-time-log-phase.sql.
   const TIME_LOG = "job_time_log";
   const JOB_TYPES = ["install", "site_visit", "demo", "workshop", "fetch", "deliver"];
   function lowEmail(v) { return String(v || "").toLowerCase(); }
@@ -1706,11 +1715,30 @@
     if (!session) return null;
     return state.timeLog.find(r => !r.ended_at && lowEmail(r.tech_email) === lowEmail(session.email)) || null;
   }
+  function myOpenSessionFor(jobId, phase) {
+    if (!session) return null;
+    return state.timeLog.find(r => !r.ended_at
+      && lowEmail(r.tech_email) === lowEmail(session.email)
+      && r.job_id === jobId
+      && (phase === undefined || phaseOf(r) === phase)) || null;
+  }
   function openSessions() {
     return state.timeLog.filter(r => !r.ended_at)
       .sort((a, b) => String(a.started_at).localeCompare(String(b.started_at)));
   }
   function sessionsForJob(jobId) { return state.timeLog.filter(r => r.job_id === jobId); }
+  const PHASE_TRAVEL = "travel";
+  const PHASE_ONSITE = "onsite";
+  // Rows written before the phase column existed are on-site time: the old
+  // clock covered both, but the work itself is the honest default.
+  function phaseOf(row) { return row && row.phase === PHASE_TRAVEL ? PHASE_TRAVEL : PHASE_ONSITE; }
+  function phaseLabel(phase) { return phase === PHASE_TRAVEL ? "Travel" : "On site"; }
+  function sessionsForJobPhase(jobId, phase) {
+    return sessionsForJob(jobId).filter(r => phaseOf(r) === phase);
+  }
+  function phaseSecsForJob(jobId, phase) {
+    return sessionsForJobPhase(jobId, phase).reduce((sum, r) => sum + adjustedSecs(r), 0);
+  }
   function clockedSecsForJob(jobId) {
     return sessionsForJob(jobId).reduce((sum, r) => sum + adjustedSecs(r), 0);
   }
@@ -1762,7 +1790,8 @@
     }
     return true;
   }
-  async function clockOn(jobId) {
+  async function startClock(jobId, phase) {
+    phase = phase === PHASE_TRAVEL ? PHASE_TRAVEL : PHASE_ONSITE;
     if (!canClock()) {
       if (!timeLogReady()) notify("The time clock isn't set up yet — run supabase-time-log.sql in Supabase, then reload the schema cache.", 10000);
       return;
@@ -1770,15 +1799,18 @@
     const job = state.jobs.find(j => j.id === jobId);
     if (!job) return;
     const open = myOpenSession();
-    if (open && open.job_id === jobId) { notify("You're already on the clock for this job.", 4000); return; }
-    // One job at a time. Clocking on the next job closes the last one at the
-    // same moment - that is what stops a forgotten clock-off becoming hours of
-    // invented overtime.
+    if (open && open.job_id === jobId && phaseOf(open) === phase) {
+      notify(phase === PHASE_TRAVEL ? "You're already travelling to this job." : "You're already on site at this job.", 4000);
+      return;
+    }
+    // One timer at a time. Starting the next one closes the last one at the
+    // same moment - that is what stops a forgotten timer becoming invented
+    // overtime, and it is also what ends travel when the technician arrives.
     if (open) await closeSession(open);
     const row = {
       id: newUuid(), tech_email: lowEmail(session.email), tech_name: session.name, lane_id: job.lane,
       job_id: job.id, job_number: job.jobNumber || null, customer: job.customer || null, job_type: job.type,
-      started_at: new Date().toISOString(), ended_at: null, adjust_mins: 0, note: null,
+      phase, started_at: new Date().toISOString(), ended_at: null, adjust_mins: 0, note: null,
       corrected_by: null, corrected_at: null
     };
     patchTimeRow(row);
@@ -1786,9 +1818,13 @@
     if (isNetworkError(res)) queueOfflineWrite(TIME_LOG, "insert", row, []);
     else if (res.error) {
       state.timeLog = state.timeLog.filter(r => r.id !== row.id);
+      const msg = res.error.message || "";
+      if ((/phase/i.test(msg) && /column|schema\s*cache|does not exist/i.test(msg))
+          || String(res.error.code) === "42703" || String(res.error.code) === "PGRST204") {
+        notify("The time clock needs the travel/on-site update — run supabase-time-log-phase.sql in Supabase, then reload the schema cache.", 12000);
       // The one-open-per-person index is the backstop for two tabs or two
       // phones. Say what it means instead of showing raw database wording.
-      if (String(res.error.code) === "23505" || /duplicate key/i.test(res.error.message || "")) {
+      } else if (String(res.error.code) === "23505" || /duplicate key/i.test(res.error.message || "")) {
         notify("Your clock is already running on another device. Clock off there first, then try again.", 10000);
         await loadTimeLog();
       } else {
@@ -1797,16 +1833,22 @@
       render();
       return;
     }
-    notify(`On the clock for ${job.jobNumber ? "#" + job.jobNumber + " " : ""}${job.customer || "the job"}.`, 5000);
+    const where = job.jobNumber ? "#" + job.jobNumber + " " : "";
+    notify(phase === PHASE_TRAVEL
+      ? `Travelling to ${where}${job.customer || "the job"}.`
+      : `On site at ${where}${job.customer || "the job"}.`, 5000);
     render();
   }
+  // The day-card quick button starts on-site time; travel is started from the
+  // job card, where both timers sit side by side.
+  function clockOn(jobId) { return startClock(jobId, PHASE_ONSITE); }
   async function clockOff() {
     const open = myOpenSession();
     if (!open) return;
     if (await closeSession(open)) {
       const job = state.jobs.find(j => j.id === open.job_id);
       const where = job ? (job.jobNumber ? " #" + job.jobNumber : " " + (job.customer || "")) : "";
-      notify(`Clocked off${where} — ${formatElapsed(adjustedSecs(open))} logged.`, 6000);
+      notify(`${phaseLabel(phaseOf(open))} clocked off${where} — ${formatElapsed(adjustedSecs(open))} logged.`, 6000);
     }
     render();
   }
@@ -1847,22 +1889,31 @@
     const show = !!job && !!session && !session.isViewer && timeLogReady();
     box.classList.toggle("on", show);
     if (!show) return;
-    const running = sessionsForJob(job.id).find(r => !r.ended_at && lowEmail(r.tech_email) === lowEmail(session.email));
-    const openOnIt = sessionsForJob(job.id).filter(r => !r.ended_at);
+    const mineThis = myOpenSessionFor(job.id);
+    const travelMine = myOpenSessionFor(job.id, PHASE_TRAVEL);
+    const onsiteMine = myOpenSessionFor(job.id, PHASE_ONSITE);
     const myOpen = myOpenSession();
-    box.classList.toggle("running", !!running);
-    document.getElementById("clockDot").classList.toggle("live", !!running);
-    document.getElementById("jobClockTotal").textContent = formatElapsed(clockedSecsForJob(job.id));
-    document.getElementById("clockStatus").textContent = running ? "On the clock for this job" : "Not on the clock";
-    document.getElementById("clockElapsed").textContent = running ? formatElapsed(clockedSecs(running)) : "";
-    document.getElementById("clockBtn").textContent = running ? "Clock off" : "Clock on";
+    const openOnIt = sessionsForJob(job.id).filter(r => !r.ended_at);
+    box.classList.toggle("running", !!mineThis);
+    document.getElementById("clockDot").classList.toggle("live", !!mineThis);
+    document.getElementById("travelTimerField").classList.toggle("running", !!travelMine);
+    document.getElementById("onsiteTimerField").classList.toggle("running", !!onsiteMine);
+    document.getElementById("travelTimerDisplay").textContent = formatElapsed(phaseSecsForJob(job.id, PHASE_TRAVEL));
+    document.getElementById("onsiteTimerDisplay").textContent = formatElapsed(phaseSecsForJob(job.id, PHASE_ONSITE));
+    document.getElementById("travelTimerBtn").textContent = travelMine ? "Stop travel" : "Start travel";
+    document.getElementById("clockBtn").textContent = onsiteMine ? "Stop on site" : "Start on site";
+    document.getElementById("clockStatus").textContent = mineThis
+      ? (phaseOf(mineThis) === PHASE_TRAVEL ? "Travelling to this job" : "On site at this job")
+      : "Not on the clock";
     document.getElementById("clockWho").textContent = openOnIt.length
-      ? `On it: ${openOnIt.map(r => r.tech_name || r.tech_email).join(", ")}` : "";
-    document.getElementById("clockNote").textContent = running
-      ? "Tap Clock off when you finish. Saving or closing the job does not stop the clock."
+      ? `On it: ${openOnIt.map(r => (r.tech_name || r.tech_email) + " (" + phaseLabel(phaseOf(r)).toLowerCase() + ")").join(", ")}` : "";
+    document.getElementById("clockNote").textContent = mineThis
+      ? (phaseOf(mineThis) === PHASE_TRAVEL
+          ? "Travel is running. Start on site when you arrive — it stops travel."
+          : "On-site time is running. Stop when you finish.")
       : myOpen && myOpen.job_id !== job.id
-        ? `You are still on the clock for ${myOpen.job_number ? "#" + myOpen.job_number + " " : ""}${myOpen.customer || "another job"} — clocking on here will stop that one.`
-        : "Clock on when you set off, off when you finish. Travel and on-site are one session.";
+        ? `You are still on the clock for ${myOpen.job_number ? "#" + myOpen.job_number + " " : ""}${myOpen.customer || "another job"} — starting here will stop that one.`
+        : "Start travel when you set off, then Start on site when you arrive. Starting one stops the other.";
   }
   function renderClockStrip() {
     const el = document.getElementById("clockStrip");
@@ -1882,8 +1933,9 @@
         : (mine.job_number ? "#" + mine.job_number : (mine.customer || "a job"));
       const warn = sessionIsStale(mine)
         ? `<span class="clock-warn">still running after ${CLOCK_STALE_HOURS} hours — clock off or ask the office to fix it</span>` : "";
+      const phaseText = phaseOf(mine) === PHASE_TRAVEL ? "Travelling to" : "On site at";
       el.innerHTML = `<span class="clock-dot live"></span>
-        <span>On the clock: <strong>${escapeHtml(label)}</strong></span>
+        <span>On the clock: ${phaseText} <strong>${escapeHtml(label)}</strong></span>
         <span class="clock-live" id="stripClock">${formatElapsed(clockedSecs(mine))}</span>
         ${warn}
         <button class="ghost" id="stripClockOff" style="margin-left:auto; padding:4px 10px; font-size:12px;">Clock off</button>`;
@@ -1907,8 +1959,12 @@
   document.getElementById("clockBtn").addEventListener("click", () => {
     const id = document.getElementById("jobId").value;
     if (!id) return;
-    const mine = sessionsForJob(id).find(r => !r.ended_at && lowEmail(r.tech_email) === lowEmail(session.email));
-    if (mine) clockOff(); else clockOn(id);
+    if (myOpenSessionFor(id, PHASE_ONSITE)) clockOff(); else startClock(id, PHASE_ONSITE);
+  });
+  document.getElementById("travelTimerBtn").addEventListener("click", () => {
+    const id = document.getElementById("jobId").value;
+    if (!id) return;
+    if (myOpenSessionFor(id, PHASE_TRAVEL)) clockOff(); else startClock(id, PHASE_TRAVEL);
   });
 
   // ---------- Times (office only) ----------
@@ -1935,9 +1991,10 @@
     const out = {};
     list.forEach(r => {
       const key = lowEmail(r.tech_email);
-      const t = out[key] || (out[key] = { email: key, name: r.tech_name || r.tech_email || key, secs: 0, sessions: 0, outside: 0, overtime: 0, days: {} });
+      const t = out[key] || (out[key] = { email: key, name: r.tech_name || r.tech_email || key, secs: 0, travel: 0, onsite: 0, sessions: 0, outside: 0, overtime: 0, days: {} });
       const secs = adjustedSecs(r);
       t.secs += secs;
+      if (phaseOf(r) === PHASE_TRAVEL) t.travel += secs; else t.onsite += secs;
       t.sessions++;
       t.outside += outsideHoursSecs(r);
       const d = localDayKey(r.started_at);
@@ -1953,7 +2010,8 @@
   }
   function timesByType(list) {
     const out = {};
-    list.filter(r => r.ended_at).forEach(r => {
+    // Efficiency is about time on the job, so travel must not flatter it.
+    list.filter(r => r.ended_at && phaseOf(r) === PHASE_ONSITE).forEach(r => {
       const key = r.job_type || "site_visit";
       const t = out[key] || (out[key] = { type: key, jobs: {}, secs: 0 });
       t.secs += adjustedSecs(r);
@@ -1978,12 +2036,16 @@
     const list = timesSessionsForMonth();
     const techs = timesByTech(list);
     const totalSecs = techs.reduce((s, t) => s + t.secs, 0);
+    const travelSecs = techs.reduce((s, t) => s + t.travel, 0);
+    const onsiteSecs = techs.reduce((s, t) => s + t.onsite, 0);
     const overtime = techs.reduce((s, t) => s + t.overtime, 0);
     const outside = techs.reduce((s, t) => s + t.outside, 0);
     const onNow = openSessions();
 
     let html = `<div class="times-summary">
       <div class="times-card"><b>${hoursText(totalSecs)}</b><span>clocked in ${monthLabel}</span></div>
+      <div class="times-card"><b>${hoursText(travelSecs)}</b><span>travelling</span></div>
+      <div class="times-card"><b>${hoursText(onsiteSecs)}</b><span>on site</span></div>
       <div class="times-card"><b>${onNow.length}</b><span>on the clock right now</span></div>
       <div class="times-card"><b class="${overtime ? "times-over" : ""}">${hoursText(overtime)}</b><span>over ${state.workDayMins / 60}h in a day</span></div>
       <div class="times-card"><b>${hoursText(outside)}</b><span>outside ${state.workDayStart}–${state.workDayEnd}</span></div>
@@ -1993,16 +2055,19 @@
       html += `<div class="data-wrap"><div style="padding:26px; text-align:center; color:var(--ink-soft); font-size:13px;">Nobody has clocked on in ${monthLabel} yet.</div></div>`;
     } else {
       html += `<div class="data-wrap" style="margin-bottom:14px;"><table class="data-table times-table">
-        <thead><tr><th>Technician</th><th class="num">Sessions</th><th class="num">Clocked</th><th class="num">Outside hours</th><th class="num">Over ${state.workDayMins / 60}h</th></tr></thead><tbody>`;
+        <thead><tr><th>Technician</th><th class="num">Sessions</th><th class="num">Travel</th><th class="num">On site</th><th class="num">Clocked</th><th class="num">Outside hours</th><th class="num">Over ${state.workDayMins / 60}h</th></tr></thead><tbody>`;
       techs.forEach(t => {
-        html += `<tr><td>${escapeHtml(t.name)}</td><td class="num">${t.sessions}</td><td class="num"><b>${hoursText(t.secs)}</b></td>
+        html += `<tr><td>${escapeHtml(t.name)}</td><td class="num">${t.sessions}</td>
+          <td class="num">${t.travel ? hoursText(t.travel) : "—"}</td>
+          <td class="num">${t.onsite ? hoursText(t.onsite) : "—"}</td>
+          <td class="num"><b>${hoursText(t.secs)}</b></td>
           <td class="num">${t.outside ? hoursText(t.outside) : "—"}</td>
           <td class="num ${t.overtime ? "times-over" : ""}">${t.overtime ? hoursText(t.overtime) : "—"}</td></tr>`;
       });
       html += `</tbody></table></div>`;
 
       html += `<div class="data-wrap"><table class="data-table times-table">
-        <thead><tr><th>Date</th><th>Technician</th><th>Job</th><th>Customer</th><th>Start</th><th>End</th><th class="num">Hours</th><th class="num" title="How long after the start the server first heard about it. Large gaps usually mean no signal.">Sent</th><th></th></tr></thead><tbody>`;
+        <thead><tr><th>Date</th><th>Technician</th><th>Phase</th><th>Job</th><th>Customer</th><th>Start</th><th>End</th><th class="num">Hours</th><th class="num" title="How long after the start the server first heard about it. Large gaps usually mean no signal.">Sent</th><th></th></tr></thead><tbody>`;
       list.slice(0, 300).forEach(r => {
         const secs = adjustedSecs(r);
         const over = !r.ended_at && sessionIsStale(r);
@@ -2013,6 +2078,7 @@
         html += `<tr>
           <td>${escapeHtml(localDayKey(r.started_at))}</td>
           <td>${escapeHtml(techName)}</td>
+          <td>${phaseLabel(phaseOf(r))}</td>
           <td>${r.job_number ? "#" + escapeHtml(r.job_number) : "—"}${corrected}</td>
           <td>${escapeHtml(r.customer || "—")}</td>
           <td>${new Date(r.started_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</td>
@@ -2040,7 +2106,7 @@
             <td class="num ${diff !== null && diff > 0 ? "times-over" : ""}">${diff === null ? `<span style="color:var(--ink-soft)">set a target in Setup</span>` : (diff > 0 ? "+" : "") + Math.round(diff) + " min"}</td></tr>`;
         });
         html += `</tbody></table></div>`;
-        html += `<div class="day-total-line">Only finished sessions count towards efficiency. Averages are per job, not per visit, so a chained job with two clock-ons counts once.</div>`;
+        html += `<div class="day-total-line">Efficiency uses on-site time only, so travel does not flatter it. Averages are per job, not per visit, so a chained job with two clock-ons counts once.</div>`;
       }
     }
     el.innerHTML = html;
@@ -2086,8 +2152,12 @@
       email: who
     };
   }
-  async function signIn(email) {
-    const opts = { shouldCreateUser: false };
+  async function signIn(email, createUser) {
+    // The sign-in box must not create accounts for strangers, so it sends
+    // shouldCreateUser: false. The office "Send link" button passes true: the
+    // person is already on the team list, and a first link cannot be sent to an
+    // address that has no Supabase login yet.
+    const opts = { shouldCreateUser: !!createUser };
     if (SIGN_IN_RETURN_TO) opts.emailRedirectTo = SIGN_IN_RETURN_TO;
     const sent = await sb.auth.signInWithOtp({ email: String(email || "").trim(), options: opts });
     if (sent.error) throw sent.error;
@@ -2234,7 +2304,7 @@
         // Supabase says "signups not allowed" for a stranger's address so it
         // cannot be used to find out who is on the team.
         const msg = /signups not allowed/i.test(e.message || "")
-          ? "That address isn't on the team list. Ask the office to add it in Setup."
+          ? "Couldn't send a link to that address. If it is on the team list, the office still needs to give it a login with \"Send link\" in Setup."
           : (/rate|seconds/i.test(e.message || "") ? "Too many attempts — wait a minute and try again." : (e.message || "Could not send the link."));
         box.textContent = msg;
         box.style.display = "";
@@ -2763,13 +2833,13 @@
       if (laneMiles) html += `<div class="day-total-line" style="border-top:none;padding:0 0 4px;">${laneMiles.toFixed(1)} mi driven · £${money(laneMiles).toFixed(2)}</div>`;
       jobs.forEach(j => {
         const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
-        const mine = canClock() ? sessionsForJob(j.id).find(r => !r.ended_at && lowEmail(r.tech_email) === lowEmail(session.email)) : null;
+        const mine = canClock() ? myOpenSessionFor(j.id) : null;
         const logged = clockedSecsForJob(j.id);
         let clockHtml = "";
         if (canClock()) {
           clockHtml = mine
-            ? `<button type="button" class="clock-tag live" data-clock-off="${escapeHtml(j.id)}" style="border:none; cursor:pointer;">● ${formatElapsed(clockedSecs(mine))} · Clock off</button>`
-            : `<button type="button" class="ghost" data-clock-on="${escapeHtml(j.id)}" style="padding:2px 7px; font-size:10.5px;">Clock on</button>`;
+            ? `<button type="button" class="clock-tag live" data-clock-off="${escapeHtml(j.id)}" style="border:none; cursor:pointer;">● ${formatElapsed(clockedSecs(mine))} · Stop ${phaseOf(mine) === PHASE_TRAVEL ? "travel" : "on site"}</button>`
+            : `<button type="button" class="ghost" data-clock-on="${escapeHtml(j.id)}" style="padding:2px 7px; font-size:10.5px;">Start on site</button>`;
           if (logged && !mine) clockHtml += `<span class="clock-tag" title="Total clocked on this job">${hoursText(logged)} logged</span>`;
         } else if (logged) {
           clockHtml = `<span class="clock-tag" title="Total clocked on this job">${hoursText(logged)} logged</span>`;
@@ -3167,6 +3237,8 @@
     ["technician",     j => { const l = laneById(j.lane); return l ? l.name : j.lane; }],
     ["duration_mins",  j => j.duration],
     ["clocked_hours",  j => { const s = clockedSecsForJob(j.id); return s ? (s / 3600).toFixed(2) : ""; }],
+    ["travel_hours",   j => { const s = phaseSecsForJob(j.id, PHASE_TRAVEL); return s ? (s / 3600).toFixed(2) : ""; }],
+    ["onsite_hours",   j => { const s = phaseSecsForJob(j.id, PHASE_ONSITE); return s ? (s / 3600).toFixed(2) : ""; }],
     ["travel_mins",    j => j.travel],
     ["mileage_miles",  j => j.mileage],
     ["make",           j => j.make],
@@ -3775,6 +3847,10 @@
           not a mistake in what you typed.</span>`;
       } else if (/duplicate key|already exists/i.test(msg)) {
         hint = `<br><span>Something with that name or code already exists. Try a different name.</span>`;
+      } else if (/signups? not allowed|signups? disabled|email signups?/i.test(msg)) {
+        hint = `<br><span>Supabase is refusing to create a login for this address. In Supabase, check
+          Authentication &rarr; Providers &rarr; Email is enabled and that new sign-ups are allowed.
+          The address itself is fine - this is a project setting, not the person's domain.</span>`;
       }
       box.innerHTML = `<b>${escapeHtml(what)} failed &mdash; nothing was changed</b><code>${escapeHtml(String(msg))}</code>${hint}`;
       box.style.display = "";
@@ -3920,7 +3996,7 @@
       const t = state.techs.find(x => x.id === id);
       if (!t || !t.email) return;
       try {
-        await signIn(t.email);
+        await signIn(t.email, true);
         notify(`Sign-in link sent to ${t.email}. It works once, and only they can use it.`, 9000);
       } catch (e) {
         fail(`Sending a link to ${t.email}`, e);
@@ -4226,6 +4302,11 @@
     if (travelField) travelField.style.display = hide;
     const mileageSection = document.getElementById("mileageSection");
     if (mileageSection) mileageSection.style.display = hide;
+    const travelTimerField = document.getElementById("travelTimerField");
+    if (travelTimerField) {
+      const showTravelTimer = !isWs && !!document.getElementById("jobId").value && !viewerNow();
+      travelTimerField.style.display = showTravelTimer ? "" : "none";
+    }
     // Install detail only makes sense on installs; a demo or site visit shouldn't carry a wire spec.
     const showInstall = capCol("install_details") && type === "install";
     const wrap = document.getElementById("installWrap");
@@ -4237,14 +4318,14 @@
       if (showInstall && !touchedSections[sectionKey("installDetails")]) det.open = false;
     }
     if (wrap) wrap.style.display = showInstall ? "" : "none";
-    // The clock is one session per person, so it applies to every saved job
-    // including workshop ones. Only the warranty claim timer is conditional.
+    // The two on-the-clock timers sit above the fields and apply to every saved
+    // job, including workshop ones. Only the warranty claim timer is conditional.
     const warrantyOn = document.getElementById("f_warranty").checked;
     const warrantyTimerField = document.getElementById("warrantyTimerField");
     if (warrantyTimerField) warrantyTimerField.style.display = warrantyOn ? "" : "none";
     const timerRow = document.getElementById("timerRow");
     if (timerRow && !viewerNow()) {
-      timerRow.style.display = document.getElementById("jobId").value ? "" : "none";
+      timerRow.style.display = (warrantyOn && document.getElementById("jobId").value) ? "" : "none";
     }
     const job = state.jobs.find(j => j.id === document.getElementById("jobId").value);
     refreshClockBox(job || null);
