@@ -151,6 +151,8 @@
     font-weight: 600; color: var(--ink);
   }
   .lane-edit:focus { background: var(--paper); border: 1px solid var(--line); }
+  .rail-hint { font-size: 11.5px; color: var(--ink-soft); line-height: 1.45; margin: 7px 2px 0; }
+  .lane-select { width: auto; max-width: 185px; padding: 4px 6px; font-size: 12.5px; }
 
   .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
   .rail-foot button { width: 100%; text-align: left; font-size: 12px; }
@@ -496,6 +498,7 @@
     <div class="rail-section" id="teamCapacitySection">
       <div class="rail-title">TEAM &amp; CAPACITY</div>
       <div id="laneToggles"></div>
+      <div class="rail-hint">Only technicians get a column. Set who is on which column in <b>Setup &rarr; Logins</b>.</div>
     </div>
 
     <div class="rail-section" id="settingsSection">
@@ -3792,16 +3795,29 @@
     }).join("");
 
     const codeRows = state.techs.slice().sort((a,b) => a.name.localeCompare(b.name)).map(t => {
-      const lane = t.lane_id ? laneById(t.lane_id) : null;
       const viewer = !t.is_admin && isViewerCode(t.access_code);
       const role = t.is_admin
         ? `<span class="status-pill status-confirmed">Office</span>`
         : viewer
           ? `<span class="status-pill">Viewer</span>`
           : `<span style="color:var(--ink-soft)">Technician</span>`;
-      const laneCell = viewer
-        ? `<span style="color:var(--ink-soft)">none, by design</span>`
-        : lane ? escapeHtml(lane.name) : `<span style="color:var(--ink-soft)">office (no lane)</span>`;
+      const bookable = !t.is_admin && !viewer;
+      const hasLane = !!(t.lane_id && laneById(t.lane_id));
+      let laneCell;
+      if (!bookable) {
+        // Office and viewers are never booked. If an old row still carries a
+        // lane, say so and offer to take them off it.
+        laneCell = `<span style="color:var(--ink-soft)">not bookable</span>`;
+        if (t.lane_id) {
+          laneCell += ` <button class="ghost" data-setup-tech-clearlane="${t.id}" style="padding:3px 6px; font-size:11px;">take off column</button>`;
+        }
+      } else {
+        const laneOpts = state.lanes.slice().sort((a,b) => (a.sort_order||0) - (b.sort_order||0))
+          .map(l => `<option value="${escapeAttr(l.id)}" ${t.lane_id === l.id ? "selected" : ""}>${escapeHtml(l.name)}</option>`).join("");
+        laneCell = `<select class="lane-select" data-setup-tech-lane="${t.id}" title="Which diary column ${escapeAttr(t.name)} is booked on">
+          <option value="" ${hasLane ? "" : "selected"}>No column — not bookable</option>${laneOpts}
+        </select>`;
+      }
       // Without an email this person cannot sign in at all, so say so plainly
       // rather than leaving a blank cell to be discovered later.
       const emailCell = t.email
@@ -3839,7 +3855,7 @@
         <div class="setup-error" id="setupError" style="display:none;" role="alert"></div>
         <section class="setup-card">
           <h3>Team &amp; workshop</h3>
-          <p class="setup-note">Everyone who appears as a column on the diary, plus the workshop. Add a workshop guy here and they get a column of their own.</p>
+          <p class="setup-note">These are the bookable columns on the diary. Only technicians are put on one — office staff and viewers are never booked. A workshop column is just another column, and several technicians each get their own.</p>
           <div class="data-wrap"><table class="data-table">
             <thead><tr><th>Name</th><th>ID</th><th>Jobs</th><th>Login</th><th></th></tr></thead>
             <tbody>${laneRows || `<tr><td colspan="5" class="empty-hint">No lanes yet.</td></tr>`}</tbody>
@@ -3854,7 +3870,8 @@
           <h3>Logins</h3>
           <p class="setup-note">Nobody uses a shared code any more. Put each person's work email in here and they sign in by
             clicking a link we email them — no password for anyone to forget, share or lose. <b>A login with no email cannot sign in at all.</b>
-            A <b>viewer</b> sees the whole diary and can send job requests, but can never add a job and is never booked to.</p>
+            Pick someone's <b>Diary column</b> here to put them on the board: only technicians can be booked, so office staff and viewers
+            have no column. A <b>viewer</b> (usually sales) sees the whole diary and can send job requests, but can never add a job and is never booked to.</p>
           <div class="data-wrap"><table class="data-table">
             <thead><tr><th>Name</th><th>Diary column</th><th>Sign-in email</th><th>Role</th><th></th></tr></thead>
             <tbody>${codeRows || `<tr><td colspan="5" class="empty-hint">No logins yet.</td></tr>`}</tbody>
@@ -4011,24 +4028,26 @@
       if (email === null) return notify(`No email given, so ${name} was not added.`, 6000);
       const roleAns = (prompt(
         `What should ${name} be allowed to do?\n\n` +
-        `1. Team member — on the diary, records work on their own jobs\n` +
-        `2. Viewer — sees the whole diary and can request jobs, but can never add one\n\n` +
-        `Type 1 or 2 (blank means 1):`, "1") || "").trim();
-      const viewer = /^(2|v|viewer)$/i.test(roleAns);
+        `1. Technician — gets a diary column and jobs are booked to them\n` +
+        `2. Viewer / sales — sees the whole diary and can request jobs, never booked\n` +
+        `3. Office — runs the screens, no diary column, never booked\n\n` +
+        `Type 1, 2 or 3 (blank means 1):`, "1") || "").trim();
+      const viewer = /^(2|v|viewer|sales)$/i.test(roleAns);
+      const office = /^(3|o|office)$/i.test(roleAns);
       let chosen = "";
-      if (!viewer && state.lanes.length) {
+      if (!viewer && !office && state.lanes.length) {
         const laneAns = (prompt(
           `Which diary column is ${name} on?\n${state.lanes.map((l,i) => `${i+1}. ${l.name}`).join("\n")}\n\n` +
-          `Number, or leave blank if they only ever request jobs:`, "1") || "").trim();
+          `Number, or leave blank if they are not on the diary yet:`, "1") || "").trim();
         chosen = /^\d+$/.test(laneAns) ? (state.lanes[Number(laneAns) - 1] || {}).id : "";
       }
       const code = await freshAccessCode(viewer);
       if (!code) return fail("Adding that login", { message: "could not find an unused access code — try again" });
-      const { error } = await sb.from("techs").insert({ id: techId, name, access_code: code, lane_id: chosen || null, is_admin: false, email });
+      const { error } = await sb.from("techs").insert({ id: techId, name, access_code: code, lane_id: (viewer || office) ? null : (chosen || null), is_admin: office, email });
       if (error) return fail("Adding that login", error);
       await loadTechs();
       render();
-      notify(`${name} added as ${viewer ? "a viewer" : "a team member"}. They sign in with ${email} — “Send link” in the logins table gives them their first one.`, 12000);
+      notify(`${name} added as ${office ? "office" : viewer ? "a viewer" : "a technician"}. They sign in with ${email} — “Send link” in the logins table gives them their first one.`, 12000);
     });
 
     // The role lives in the code column, so switching it reissues the code. That
@@ -4039,18 +4058,22 @@
       const t = state.techs.find(x => x.id === id);
       if (!t) return;
       const toViewer = b.getAttribute("data-to-viewer") === "1";
+      const oldLane = t.lane_id ? laneById(t.lane_id) : null;
       if (toViewer) {
-        if (!confirm(`Make ${t.name} a viewer?\n\nThey keep seeing the whole diary and can still send job requests, but they cannot add jobs and nothing can be booked to them.`)) return;
+        const offColumn = oldLane ? `\n\nThey will be taken off the ${oldLane.name} column. Jobs already booked on it stay.` : "";
+        if (!confirm(`Make ${t.name} a viewer?\n\nThey keep seeing the whole diary and can still send job requests, but they cannot add jobs and nothing can be booked to them.${offColumn}`)) return;
       } else {
-        if (!confirm(`Make ${t.name} a team member?\n\nThey will need a diary column before work can be booked to them — set that afterwards.`)) return;
+        if (!confirm(`Make ${t.name} a technician?\n\nPick their diary column in this table once they are a technician.`)) return;
       }
       const code = await freshAccessCode(toViewer);
       if (!code) return fail("Changing that login", { message: "could not find an unused access code — try again" });
-      const { error } = await sb.from("techs").update({ access_code: code }).eq("id", id);
+      const patch = { access_code: code };
+      if (toViewer) patch.lane_id = null;
+      const { error } = await sb.from("techs").update(patch).eq("id", id);
       if (error) return fail("Changing that login", error);
       await loadTechs();
       render();
-      notify(`${t.name} is now ${toViewer ? "a viewer" : "a team member"}. Their sign-in hasn't changed — still ${t.email || "no email set"}.`);
+      notify(`${t.name} is now ${toViewer ? "a viewer" : "a technician"}. Their sign-in hasn't changed — still ${t.email || "no email set"}.${toViewer && oldLane ? ` Taken off ${oldLane.name}.` : ""}`);
     }));
 
     // An existing login with no email can never sign in, so this is the one
@@ -4116,13 +4139,53 @@
       if (!confirm(`Remove ${lane.name} from the diary?\n\nJobs already booked to them stay where they are — they just won't have a column to sit in. This can't be undone from here.`)) return;
       const { error } = await sb.from("lanes").delete().eq("id", id);
       if (error) return fail("Removing that column", error);
-      // Keep their login usable but park it off the board.
-      const orphan = state.techs.find(t => t.lane_id === id);
-      if (orphan) await sb.from("techs").update({ lane_id: null }).eq("id", orphan.id);
+      // Keep their login usable but park it off the board. Clear every login
+      // pointing at the lane, in case old data let two people share one.
+      const orphans = state.techs.filter(t => t.lane_id === id);
+      for (const orphan of orphans) await sb.from("techs").update({ lane_id: null }).eq("id", orphan.id);
       state.activeLanes = state.activeLanes.filter(x => x !== id);
       notify(`${lane.name} removed${upcoming ? ` — ${upcoming} upcoming job${upcoming === 1 ? "" : "s"} still assigned to them` : ""}.`, 8000);
       await Promise.all([loadLanes(), loadTechs()]);
       render();
+    }));
+
+    // The one control that decides "who goes where". A lane can only hold one
+    // technician, so a column already in use is refused rather than shared.
+    el.querySelectorAll("[data-setup-tech-lane]").forEach(sel => sel.addEventListener("change", async () => {
+      clearSetupError();
+      const id = sel.getAttribute("data-setup-tech-lane");
+      const t = state.techs.find(x => x.id === id);
+      if (!t) return;
+      const laneId = sel.value || null;
+      if (laneId) {
+        const taken = state.techs.find(x => x.id !== t.id && x.lane_id === laneId);
+        if (taken) {
+          sel.value = t.lane_id || "";
+          return notify(`${laneById(laneId)?.name || "That column"} is already ${taken.name}'s column. Take them off it first.`, 9000);
+        }
+      }
+      const { error } = await sb.from("techs").update({ lane_id: laneId }).eq("id", id);
+      if (error) return fail("Changing that column", error);
+      await loadTechs();
+      render();
+      const lane = laneId ? laneById(laneId) : null;
+      notify(lane
+        ? `${t.name} is now booked on the ${lane.name} column.`
+        : `${t.name} is no longer booked on the diary.`, 7000);
+    }));
+
+    // Old rows can still carry a lane after someone was made office or a viewer.
+    el.querySelectorAll("[data-setup-tech-clearlane]").forEach(b => b.addEventListener("click", async () => {
+      clearSetupError();
+      const id = b.getAttribute("data-setup-tech-clearlane");
+      const t = state.techs.find(x => x.id === id);
+      if (!t || !t.lane_id) return;
+      const lane = laneById(t.lane_id);
+      const { error } = await sb.from("techs").update({ lane_id: null }).eq("id", id);
+      if (error) return fail("Taking them off the column", error);
+      await loadTechs();
+      render();
+      notify(`${t.name} is off the ${lane ? lane.name : ""} column. Jobs already booked on it stay.`, 8000);
     }));
 
     el.querySelectorAll("[data-setup-tech-rename]").forEach(b => b.addEventListener("click", async () => {
@@ -4147,6 +4210,12 @@
       // The code carries the viewer flag, so dropping someone from office has to
       // drop the prefix too, otherwise they stay a viewer and the table lies.
       const patch = { is_admin: makeAdmin };
+      let officeLane = null;
+      if (makeAdmin) {
+        officeLane = t.lane_id ? laneById(t.lane_id) : null;
+        if (officeLane && !confirm(`Make ${t.name} office?\n\nThey won't be booked on the diary any more. Their ${officeLane.name} column stays, and jobs already booked on it are kept.`)) return;
+        patch.lane_id = null;
+      }
       if (!makeAdmin && isViewerCode(t.access_code)) {
         const code = await freshAccessCode(false);
         if (!code) return fail("Changing that role", { message: "could not find an unused access code — try again" });
@@ -4157,7 +4226,7 @@
       if (error) return fail("Changing that role", error);
       notify(patch.access_code
         ? `${t.name} is now a technician. They still sign in with ${t.email || "no email set"}.`
-        : `${t.name} is now ${makeAdmin ? "office" : "a technician"}.`);
+        : `${t.name} is now ${makeAdmin ? "office" : "a technician"}.${officeLane ? ` Taken off ${officeLane.name}.` : ""}`);
       await loadTechs();
       render();
     }));
