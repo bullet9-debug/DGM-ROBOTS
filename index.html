@@ -253,6 +253,7 @@
     display: flex; flex-direction: column; gap: 4px; overflow: hidden;
   }
   .month-cell:hover { background: var(--paper); }
+  .viewer-month .month-cell { cursor: default; }
   .month-cell.out { background: var(--paper); }
   .month-cell.out .month-date { opacity: .55; font-weight: 500; }
   .month-cell.today { box-shadow: inset 0 0 0 2px var(--green); }
@@ -794,19 +795,73 @@
     <h2>Request a new job</h2>
     <div style="font-size:12px; color:var(--ink-soft); margin-top:-8px; margin-bottom:14px;">This goes to the office to schedule — it won't appear on the diary until they create the job from it.</div>
 
+    <div class="field-row">
+      <div class="field">
+        <label for="rf_date">Date</label>
+        <input type="date" id="rf_date">
+      </div>
+      <div class="field">
+        <label for="rf_phone">Phone number</label>
+        <input type="tel" id="rf_phone" placeholder="Mobile or landline">
+      </div>
+    </div>
+
     <div class="field">
-      <label for="rf_customer">Customer</label>
+      <label for="rf_customer">Full name</label>
       <input type="text" id="rf_customer" placeholder="Customer or site name">
     </div>
 
     <div class="field">
-      <label for="rf_customeremail">Customer email</label>
+      <label for="rf_customeremail">Email address</label>
       <input type="email" id="rf_customeremail" placeholder="For confirmations / invoicing">
     </div>
 
     <div class="field">
-      <label for="rf_address">Address / postcode</label>
+      <label for="rf_address">Address and postcode</label>
       <input type="text" id="rf_address">
+    </div>
+
+    <div class="field">
+      <label for="rf_garden">Garden information (lawn size)</label>
+      <select id="rf_garden">
+        <option value="">Choose...</option>
+        <option value="500 m²">500 m²</option>
+        <option value="1,000 m²">1,000 m²</option>
+        <option value="1,500 m²">1,500 m²</option>
+        <option value="2,000 m²">2,000 m²</option>
+        <option value="2,500 m²">2,500 m²</option>
+        <option value="3,000 m²">3,000 m²</option>
+        <option value="3,500 m²">3,500 m²</option>
+        <option value="4,000 m²">4,000 m²</option>
+        <option value="4,500 m²">4,500 m²</option>
+        <option value="5,000 m²">5,000 m²</option>
+        <option value="5,500 m²">5,500 m²</option>
+        <option value="6,000 m²">6,000 m²</option>
+        <option value="6,500 m²">6,500 m²</option>
+        <option value="7,000 m²">7,000 m²</option>
+        <option value="7,500 m²">7,500 m²</option>
+        <option value="8,000 m²">8,000 m²</option>
+        <option value="8,500 m²">8,500 m²</option>
+        <option value="9,000 m²">9,000 m²</option>
+        <option value="9,500 m²">9,500 m²</option>
+        <option value="10,000 m²">10,000 m²</option>
+        <option value="Over 10,000 m²">Over 10,000 m²</option>
+      </select>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="rf_lawncare">Current lawn care</label>
+        <input type="text" id="rf_lawncare" placeholder="Push mower, petrol mower, ride-on, none...">
+      </div>
+      <div class="field">
+        <label for="rf_install">Interested in a professional install?</label>
+        <select id="rf_install">
+          <option value="">Choose...</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+      </div>
     </div>
 
     <div class="field-row">
@@ -2343,9 +2398,21 @@
     document.getElementById("mileageTabBtn").style.display = session.isAdmin ? "" : "none";
     document.getElementById("timesTabBtn").style.display = session.isAdmin ? "" : "none";
     document.getElementById("followupTabBtn").style.display = session.isAdmin ? "" : "none";
-    // A technician works from their day, not the month. Land them on today's
-    // day view whatever view the office left the app on.
-    if (!session.isAdmin) {
+    // A viewer gets the month grid, a request button and nothing else: no week
+    // or day view, no search, no jump-to-date and no export buttons. Hiding the
+    // controls is only cosmetic - the guards in setView and openJobModal refuse.
+    document.getElementById("searchBtn").style.display = viewer ? "none" : "";
+    document.getElementById("jumpDate").style.display = viewer ? "none" : "";
+    document.getElementById("exportBtn").style.display = viewer ? "none" : "";
+    document.getElementById("exportCsvBtn").style.display = viewer ? "none" : "";
+    document.querySelectorAll('.view-switch button[data-view="week"], .view-switch button[data-view="day"]')
+      .forEach(b => { b.style.display = viewer ? "none" : ""; });
+    if (viewer) {
+      currentView = "month";
+      cursorDate = startOfDay(new Date());
+    } else if (!session.isAdmin) {
+      // A technician works from their day, not the month. Land them on today's
+      // day view whatever view the office left the app on.
       currentView = "day";
       cursorDate = startOfDay(new Date());
     }
@@ -2652,6 +2719,12 @@
   // ---------- Top bar ----------
   function setView(v) {
     if (!v || v === currentView) return;
+    // A viewer is limited to the month grid. Everything else is office or
+    // technician work they cannot act on.
+    if (viewerNow() && v !== "month") {
+      notify("Viewers get the month view. Use \"Request job\" and the office will book it.", 5000);
+      return;
+    }
     // Hiding the tab is cosmetic. This is the part that actually refuses.
     if (!session.isAdmin && ADMIN_ONLY_VIEWS.includes(v)) {
       notify("That's an office view. Ask the office if you need something from it.", 5000);
@@ -2718,7 +2791,7 @@
       if (w === 0 || w === 6) continue;
       days.push(d);
     }
-    let html = `<div class="month-box" id="monthBox"><div class="month-head">`;
+    let html = `<div class="month-box${viewerNow() ? " viewer-month" : ""}" id="monthBox"><div class="month-head">`;
     dows.forEach(d => html += `<div class="month-dow">${d}</div>`);
     html += `</div><div class="month-grid">`;
     days.forEach(d => {
@@ -2727,21 +2800,28 @@
       const isToday = dateStr === todayStr;
       const past = isPastDate(dateStr);
       const dayJobs = diaryJobsOn(dateStr).filter(j => state.activeLanes.includes(j.lane)).sort((a,b) => (a.time||"").localeCompare(b.time||""));
-      const over = !past && (dayIsOverCapacity(dateStr) || state.activeLanes.some(laneId => laneRunsLate(dateStr, laneId)));
+      const over = !viewerNow() && !past && (dayIsOverCapacity(dateStr) || state.activeLanes.some(laneId => laneRunsLate(dateStr, laneId)));
       html += `<div class="month-cell ${inMonth?"":"out"} ${isToday?"today":""} ${past?"past":""}" data-date="${dateStr}">
         <div class="month-date ${over?"over":""}"><span>${d.getDate()}</span><span class="cap-dot" title="Over capacity or a tech running past finish time"></span></div>`;
       dayJobs.slice(0,3).forEach(j => {
         const lane = laneById(j.lane) || {color:"#999"};
         const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} ` : "";
-        html += `<div class="chip" style="border-color:${lane.color}; background:${lane.color}18;" data-job="${j.id}">${confirmedTick(j)}${j.time?escapeHtml(j.time)+" ":""}${num}${escapeHtml(j.customer||typeLabel(j.type))}</div>`;
+        // A viewer's chip carries the basics only. Type and address go in the
+        // tooltip so the cell stays readable at a glance.
+        const chipText = `${viewerNow()?"":confirmedTick(j)}${j.time?escapeHtml(j.time)+" ":""}${num}${escapeHtml(j.customer||typeLabel(j.type))}`;
+        const chipTitle = viewerNow() ? `${typeLabel(j.type)}${j.address?" · "+j.address:""}` : "";
+        html += `<div class="chip" style="border-color:${lane.color}; background:${lane.color}18;" data-job="${j.id}" title="${escapeAttr(chipTitle)}">${chipText}</div>`;
       });
       if (dayJobs.length > 3) html += `<div class="chip-more">+${dayJobs.length-3} more</div>`;
       html += `</div>`;
     });
     html += `</div></div>`;
     el.innerHTML = html;
-    el.querySelectorAll(".chip[data-job]").forEach(c => c.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(c.dataset.job); }));
-    el.querySelectorAll(".month-cell").forEach(cell => cell.addEventListener("click", () => { cursorDate = new Date(cell.dataset.date + "T00:00:00"); setView("day"); }));
+    // A viewer's month is read-only: no job form and no day view.
+    if (!viewerNow()) {
+      el.querySelectorAll(".chip[data-job]").forEach(c => c.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(c.dataset.job); }));
+      el.querySelectorAll(".month-cell").forEach(cell => cell.addEventListener("click", () => { cursorDate = new Date(cell.dataset.date + "T00:00:00"); setView("day"); }));
+    }
   }
 
   // ---------- Week view ----------
@@ -3192,6 +3272,7 @@
     if (rows[searchSel]) rows[searchSel].scrollIntoView({ block: "nearest" });
   }
   function openSearch() {
+    if (viewerNow()) { notify("Search is for the office. The month view shows what is booked.", 5000); return; }
     const ov = document.getElementById("searchOverlay");
     ov.classList.add("open");
     const inp = document.getElementById("searchInput");
@@ -4171,9 +4252,14 @@
   }
 
   function openRequestModal() {
+    document.getElementById("rf_date").value = "";
+    document.getElementById("rf_phone").value = "";
     document.getElementById("rf_customer").value = "";
     document.getElementById("rf_customeremail").value = "";
     document.getElementById("rf_address").value = "";
+    document.getElementById("rf_garden").value = "";
+    document.getElementById("rf_lawncare").value = "";
+    document.getElementById("rf_install").value = "";
     document.getElementById("rf_make").value = "";
     document.getElementById("rf_model").value = "";
     document.getElementById("rf_serial").value = "";
@@ -4187,7 +4273,23 @@
   async function submitJobRequest() {
     const customer = document.getElementById("rf_customer").value.trim();
     const notes = document.getElementById("rf_notes").value.trim();
-    if (!customer && !notes) { alert("Add at least a customer name or a note so the office knows what this is."); return; }
+    const reqDate = document.getElementById("rf_date").value;
+    const phone = document.getElementById("rf_phone").value.trim();
+    const garden = document.getElementById("rf_garden").value.trim();
+    const lawnCare = document.getElementById("rf_lawncare").value.trim();
+    const installInterest = document.getElementById("rf_install").value;
+    // The table has no columns for date, phone, garden, mower or install
+    // interest, and a migration would need Greg to run it. Keep them as a
+    // labelled block at the top of notes instead - the office sees it, and it
+    // follows the request into the job.
+    const detailLines = [];
+    if (reqDate) detailLines.push(`Date: ${reqDate}`);
+    if (phone) detailLines.push(`Phone: ${phone}`);
+    if (garden) detailLines.push(`Garden: ${garden}`);
+    if (lawnCare) detailLines.push(`Current lawn care: ${lawnCare}`);
+    if (installInterest) detailLines.push(`Interested in a professional install: ${installInterest}`);
+    const allNotes = [detailLines.join("\n"), notes].filter(Boolean).join("\n\n");
+    if (!customer && !notes && !detailLines.length) { alert("Add at least a name, phone number or note so the office knows what this is."); return; }
     const btn = document.getElementById("requestSubmitBtn");
     btn.disabled = true;
     const row = {
@@ -4200,7 +4302,7 @@
       serial_number: document.getElementById("rf_serial").value.trim() || null,
       type: document.getElementById("rf_type").value,
       warranty: document.getElementById("rf_warranty").checked,
-      notes: notes || null,
+      notes: allNotes || null,
       status: "pending"
     };
     const res = await sb.from("job_requests").insert(row);
@@ -4377,6 +4479,8 @@
   }
 
   function openJobModal(jobId, presetDate, presetLane) {
+    // A viewer has no job form at all - the cards are display only.
+    if (viewerNow()) { notify("Job details are office-only. Use \"Request job\" and the office will book it.", 6000); return; }
     pendingRequestId = null;
     populateLaneSelect();
     populateDurationSelect();
