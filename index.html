@@ -3769,6 +3769,21 @@
     const todayStr = fmtISODate(startOfDay(new Date()));
     return state.jobs.filter(j => j.lane === laneId && j.date >= todayStr).length;
   }
+  // A diary column with no technician and no upcoming work is just a leftover
+  // name in the rail. Remove it when the last person leaves it, but never the
+  // workshop and never one that still has jobs to show.
+  async function retireLaneIfEmpty(laneId) {
+    if (!laneId) return null;
+    const lane = laneById(laneId);
+    if (!lane || isWorkshopLane(laneId)) return null;
+    if (state.techs.some(t => t.lane_id === laneId)) return null;
+    if (laneJobCount(laneId) > 0) return null;
+    const { error } = await sb.from("lanes").delete().eq("id", laneId);
+    if (error) return null;
+    state.activeLanes = state.activeLanes.filter(x => x !== laneId);
+    await loadLanes();
+    return lane;
+  }
 
   function renderSetup() {
     const el = document.getElementById("content");
@@ -4058,9 +4073,10 @@
       const t = state.techs.find(x => x.id === id);
       if (!t) return;
       const toViewer = b.getAttribute("data-to-viewer") === "1";
-      const oldLane = t.lane_id ? laneById(t.lane_id) : null;
+      const oldLaneId = t.lane_id || null;
+      const oldLane = oldLaneId ? laneById(oldLaneId) : null;
       if (toViewer) {
-        const offColumn = oldLane ? `\n\nThey will be taken off the ${oldLane.name} column. Jobs already booked on it stay.` : "";
+        const offColumn = oldLane ? `\n\nThey will be taken off the ${oldLane.name} column. An empty column is removed; jobs already booked on it stay.` : "";
         if (!confirm(`Make ${t.name} a viewer?\n\nThey keep seeing the whole diary and can still send job requests, but they cannot add jobs and nothing can be booked to them.${offColumn}`)) return;
       } else {
         if (!confirm(`Make ${t.name} a technician?\n\nPick their diary column in this table once they are a technician.`)) return;
@@ -4072,8 +4088,13 @@
       const { error } = await sb.from("techs").update(patch).eq("id", id);
       if (error) return fail("Changing that login", error);
       await loadTechs();
+      const retired = toViewer ? await retireLaneIfEmpty(oldLaneId) : null;
       render();
-      notify(`${t.name} is now ${toViewer ? "a viewer" : "a technician"}. Their sign-in hasn't changed — still ${t.email || "no email set"}.${toViewer && oldLane ? ` Taken off ${oldLane.name}.` : ""}`);
+      let msg = `${t.name} is now ${toViewer ? "a viewer" : "a technician"}. Their sign-in hasn't changed — still ${t.email || "no email set"}.`;
+      if (toViewer && oldLane) {
+        msg += retired ? ` The empty ${oldLane.name} column was removed.` : ` Taken off ${oldLane.name}.`;
+      }
+      notify(msg, 9000);
     }));
 
     // An existing login with no email can never sign in, so this is the one
@@ -4164,14 +4185,24 @@
           return notify(`${laneById(laneId)?.name || "That column"} is already ${taken.name}'s column. Take them off it first.`, 9000);
         }
       }
+      const oldLaneId = t.lane_id || null;
+      const oldLane = oldLaneId && oldLaneId !== laneId ? laneById(oldLaneId) : null;
       const { error } = await sb.from("techs").update({ lane_id: laneId }).eq("id", id);
       if (error) return fail("Changing that column", error);
       await loadTechs();
+      const retired = await retireLaneIfEmpty(oldLaneId);
       render();
       const lane = laneId ? laneById(laneId) : null;
-      notify(lane
+      let msg = lane
         ? `${t.name} is now booked on the ${lane.name} column.`
-        : `${t.name} is no longer booked on the diary.`, 7000);
+        : `${t.name} is no longer booked on the diary.`;
+      if (oldLane) {
+        const n = laneJobCount(oldLaneId);
+        msg += retired
+          ? ` The empty ${oldLane.name} column was removed.`
+          : ` The ${oldLane.name} column stays${n ? ` with ${n} upcoming job${n === 1 ? "" : "s"}` : ""}.`;
+      }
+      notify(msg, 9000);
     }));
 
     // Old rows can still carry a lane after someone was made office or a viewer.
@@ -4180,12 +4211,16 @@
       const id = b.getAttribute("data-setup-tech-clearlane");
       const t = state.techs.find(x => x.id === id);
       if (!t || !t.lane_id) return;
-      const lane = laneById(t.lane_id);
+      const oldLaneId = t.lane_id;
+      const lane = laneById(oldLaneId);
       const { error } = await sb.from("techs").update({ lane_id: null }).eq("id", id);
       if (error) return fail("Taking them off the column", error);
       await loadTechs();
+      const retired = await retireLaneIfEmpty(oldLaneId);
       render();
-      notify(`${t.name} is off the ${lane ? lane.name : ""} column. Jobs already booked on it stay.`, 8000);
+      notify(retired
+        ? `${t.name} is off the ${lane.name} column, and the empty column was removed.`
+        : `${t.name} is off the ${lane ? lane.name : ""} column. Jobs already booked on it stay.`, 9000);
     }));
 
     el.querySelectorAll("[data-setup-tech-rename]").forEach(b => b.addEventListener("click", async () => {
@@ -4211,9 +4246,11 @@
       // drop the prefix too, otherwise they stay a viewer and the table lies.
       const patch = { is_admin: makeAdmin };
       let officeLane = null;
+      let officeLaneId = null;
       if (makeAdmin) {
-        officeLane = t.lane_id ? laneById(t.lane_id) : null;
-        if (officeLane && !confirm(`Make ${t.name} office?\n\nThey won't be booked on the diary any more. Their ${officeLane.name} column stays, and jobs already booked on it are kept.`)) return;
+        officeLaneId = t.lane_id || null;
+        officeLane = officeLaneId ? laneById(officeLaneId) : null;
+        if (officeLane && !confirm(`Make ${t.name} office?\n\nThey won't be booked on the diary any more. An empty ${officeLane.name} column is removed; jobs already booked on it are kept.`)) return;
         patch.lane_id = null;
       }
       if (!makeAdmin && isViewerCode(t.access_code)) {
@@ -4224,11 +4261,20 @@
       }
       const { error } = await sb.from("techs").update(patch).eq("id", id);
       if (error) return fail("Changing that role", error);
-      notify(patch.access_code
-        ? `${t.name} is now a technician. They still sign in with ${t.email || "no email set"}.`
-        : `${t.name} is now ${makeAdmin ? "office" : "a technician"}.${officeLane ? ` Taken off ${officeLane.name}.` : ""}`);
       await loadTechs();
+      const retired = makeAdmin ? await retireLaneIfEmpty(officeLaneId) : null;
       render();
+      if (patch.access_code) {
+        notify(`${t.name} is now a technician. They still sign in with ${t.email || "no email set"}.`);
+      } else {
+        let msg = `${t.name} is now ${makeAdmin ? "office" : "a technician"}.`;
+        if (officeLane) {
+          msg += retired
+            ? ` The empty ${officeLane.name} column was removed.`
+            : ` Taken off ${officeLane.name}.`;
+        }
+        notify(msg, 9000);
+      }
     }));
 
     el.querySelectorAll("[data-setup-tech-delete]").forEach(b => b.addEventListener("click", async () => {
@@ -4241,13 +4287,14 @@
       if (t.is_admin && admins.length <= 1) return notify("This is the only office login — make someone else office before removing it.", 8000);
       const lane = t.lane_id ? laneById(t.lane_id) : null;
       const signIn = t.email ? ` ${t.email} will no longer be able to sign in.` : "";
-      const where = lane ? ` Their ${lane.name} diary column stays, and jobs already booked on it are kept.` : "";
+      const where = lane ? ` An empty ${lane.name} column is removed; jobs already booked on it are kept.` : "";
       if (!confirm(`Remove ${t.name}?${signIn}${where}\n\nThis can't be undone from here.`)) return;
       const { error } = await sb.from("techs").delete().eq("id", id);
       if (error) return fail("Removing that login", error);
       await loadTechs();
+      const retired = await retireLaneIfEmpty(lane ? lane.id : null);
       render();
-      notify(`${t.name} removed.${lane ? ` Their ${lane.name} column is still on the diary.` : ""}`, 9000);
+      notify(`${t.name} removed.${lane ? (retired ? ` The empty ${lane.name} column was removed.` : ` Their ${lane.name} column is still on the diary.`) : ""}`, 9000);
     }));
   }
 
