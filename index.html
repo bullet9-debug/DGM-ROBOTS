@@ -325,6 +325,13 @@
   .day-lane-head { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .day-lane-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
   .day-lane-body .empty-hint { font-size: 12px; color: var(--ink-soft); font-style: italic; padding: 4px 2px; }
+  /* Workshop jobs are a pool of machines, not a timed route, so they flow into
+     as many columns as the width allows. A lone workshop lane then fills the
+     page instead of leaving a tall empty strip beside one narrow stack. */
+  .day-lane-body.ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-content: start; align-items: start; gap: 10px; }
+  .day-lane-body.ws-grid > .empty-hint,
+  .day-lane-body.ws-grid > .day-total-line,
+  .day-lane-body.ws-grid > .job-meta { grid-column: 1 / -1; }
 
   /* ===== Tables (mileage / bays) ===== */
   .data-wrap { border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-raised); overflow: auto; }
@@ -2100,7 +2107,10 @@
     const outside = techs.reduce((s, t) => s + t.outside, 0);
     const onNow = openSessions();
 
-    let html = `<div class="times-summary">
+    let html = `<div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+      <button class="primary" id="printTimesBtn" style="font-size:12px;">Print times report</button>
+    </div>`;
+    html += `<div class="times-summary">
       <div class="times-card"><b>${hoursText(totalSecs)}</b><span>clocked in ${monthLabel}</span></div>
       <div class="times-card"><b>${hoursText(travelSecs)}</b><span>travelling</span></div>
       <div class="times-card"><b>${hoursText(onsiteSecs)}</b><span>on site</span></div>
@@ -2168,6 +2178,8 @@
       }
     }
     el.innerHTML = html;
+    const printTimesBtn = el.querySelector("#printTimesBtn");
+    if (printTimesBtn) printTimesBtn.addEventListener("click", printTimesReport);
     el.querySelectorAll("[data-clock-force-off]").forEach(b => b.addEventListener("click", () => {
       const row = state.timeLog.find(r => r.id === b.dataset.clockForceOff);
       if (row) adminClockOff(row);
@@ -2909,7 +2921,7 @@
           <strong style="flex:1;">${escapeHtml(lane.name)}</strong>
           <span class="cap-pct">${capText}</span>
         </div>
-        <div class="day-lane-body" data-date="${dateStr}" data-lane="${lane.id}">`;
+        <div class="day-lane-body${isWorkshopLane(lane.id) ? " ws-grid" : ""}" data-date="${dateStr}" data-lane="${lane.id}">`;
       if (!jobs.length) html += `<div class="empty-hint">No jobs${session.isAdmin?" — click to add one":""}</div>`;
       // A day that has passed shows no mileage: its jobs now live in Follow-up.
       const laneMiles = past ? 0 : milesForLaneDay(dateStr, lane.id);
@@ -3628,6 +3640,77 @@
       <p style="font-size:12px">Net £${net.toFixed(2)} · VAT £${(net*VAT_RATE).toFixed(2)} · Gross £${(net*(1+VAT_RATE)).toFixed(2)}</p>
       <div class="sig"><div>Technician signature</div><div>Checked by</div><div>Date</div></div>`;
     printInto(html, `Mileage claim ${month}`);
+  }
+  function timesReportHtml() {
+    const monthLabel = cursorDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const list = timesSessionsForMonth();
+    const techs = timesByTech(list);
+    const totalSecs = techs.reduce((s, t) => s + t.secs, 0);
+    const travelSecs = techs.reduce((s, t) => s + t.travel, 0);
+    const onsiteSecs = techs.reduce((s, t) => s + t.onsite, 0);
+    const overtime = techs.reduce((s, t) => s + t.overtime, 0);
+    const outside = techs.reduce((s, t) => s + t.outside, 0);
+    const overLabel = `Over ${state.workDayMins / 60}h`;
+
+    let html = `<h1>Field Diary — times report</h1>
+      <h2>${escapeHtml(monthLabel)} · generated ${escapeHtml(fmtUKDate(fmtISODate(new Date())))}</h2>
+      <table><thead><tr><th>Sessions</th><th class="num">Clocked</th><th class="num">Travel</th><th class="num">On site</th><th class="num">Outside hours</th><th class="num">${overLabel}</th></tr></thead>
+      <tbody><tr><td>${list.length}</td><td class="num"><b>${hoursText(totalSecs)}</b></td><td class="num">${hoursText(travelSecs)}</td><td class="num">${hoursText(onsiteSecs)}</td><td class="num">${hoursText(outside)}</td><td class="num">${hoursText(overtime)}</td></tr></tbody></table>`;
+
+    html += `<h2>By technician</h2>`;
+    if (!techs.length) {
+      html += `<p style="font-size:12px">Nobody clocked on in ${escapeHtml(monthLabel)}.</p>`;
+    } else {
+      html += `<table><thead><tr><th>Technician</th><th class="num">Sessions</th><th class="num">Travel</th><th class="num">On site</th><th class="num">Clocked</th><th class="num">Outside hours</th><th class="num">${overLabel}</th></tr></thead><tbody>`;
+      techs.forEach(t => {
+        html += `<tr><td>${escapeHtml(t.name)}</td><td class="num">${t.sessions}</td>
+          <td class="num">${t.travel ? hoursText(t.travel) : "—"}</td>
+          <td class="num">${t.onsite ? hoursText(t.onsite) : "—"}</td>
+          <td class="num"><b>${hoursText(t.secs)}</b></td>
+          <td class="num">${t.outside ? hoursText(t.outside) : "—"}</td>
+          <td class="num"${t.overtime ? ` style="color:#b00020"` : ""}>${t.overtime ? hoursText(t.overtime) : "—"}</td></tr>`;
+      });
+      html += `</tbody><tfoot><tr><td><b>Total</b></td><td class="num"><b>${list.length}</b></td><td class="num"><b>${hoursText(travelSecs)}</b></td><td class="num"><b>${hoursText(onsiteSecs)}</b></td><td class="num"><b>${hoursText(totalSecs)}</b></td><td class="num"><b>${hoursText(outside)}</b></td><td class="num"><b>${hoursText(overtime)}</b></td></tr></tfoot></table>`;
+    }
+
+    const types = timesByType(list);
+    if (types.length) {
+      html += `<h2>Efficiency by job type</h2>
+        <table><thead><tr><th>Job type</th><th class="num">Jobs</th><th class="num">Average</th><th class="num">Target</th><th class="num">Difference</th></tr></thead><tbody>`;
+      types.forEach(t => {
+        const diff = t.target ? t.avg - t.target : null;
+        html += `<tr><td>${escapeHtml(typeLabel(t.type))}</td><td class="num">${t.jobs}</td><td class="num">${Math.round(t.avg)} min</td>
+          <td class="num">${t.target ? t.target + " min" : "—"}</td>
+          <td class="num"${diff !== null && diff > 0 ? ` style="color:#b00020"` : ""}>${diff === null ? "—" : (diff > 0 ? "+" : "") + Math.round(diff) + " min"}</td></tr>`;
+      });
+      html += `</tbody></table>`;
+    }
+
+    if (list.length) {
+      html += `<h2>Sessions</h2>
+        <table><thead><tr><th>Date</th><th>Technician</th><th>Phase</th><th>Job</th><th>Customer</th><th>Start</th><th>End</th><th class="num">Hours</th></tr></thead><tbody>`;
+      list.slice(0, 300).forEach(r => {
+        const secs = adjustedSecs(r);
+        const corrected = r.adjust_mins ? ` <span style="color:#666">(corrected)</span>` : "";
+        html += `<tr>
+          <td>${escapeHtml(fmtUKDate(localDayKey(r.started_at)))}</td>
+          <td>${escapeHtml(r.tech_name || r.tech_email || "")}</td>
+          <td>${escapeHtml(phaseLabel(phaseOf(r)))}</td>
+          <td>${r.job_number ? "#" + escapeHtml(r.job_number) : "—"}${corrected}</td>
+          <td>${escapeHtml(r.customer || "—")}</td>
+          <td>${new Date(r.started_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</td>
+          <td>${r.ended_at ? new Date(r.ended_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "running"}</td>
+          <td class="num">${formatElapsed(secs)}</td>
+        </tr>`;
+      });
+      html += `</tbody></table>`;
+      if (list.length > 300) html += `<p style="font-size:11px;color:#666">Showing the newest 300 of ${list.length} sessions.</p>`;
+    }
+
+    return html;
+  }
+  function printTimesReport() {
+    printInto(timesReportHtml(), `Times report ${fmtISODate(cursorDate).slice(0, 7)}`);
   }
   function printJobCard(jobId) {
     const j = state.jobs.find(x => x.id === jobId);
