@@ -268,6 +268,10 @@
     border-left: 3px solid; line-height: 1.5; max-width: 100%; min-width: 0;
   }
   .chip-more { font-size: 10px; color: var(--ink-soft); padding: 0 6px; }
+  /* Workshop categories. One workshop lane, split by the job's equipment field. */
+  .eq-tag { display: inline-block; font-size: 9px; font-weight: 700; line-height: 1.5; padding: 0 3px; border-radius: 3px; margin-right: 3px; vertical-align: 1px; text-transform: uppercase; }
+  .eq-tag.robot { background: var(--green-soft); color: var(--green); }
+  .eq-tag.general { background: var(--steel-soft); color: var(--steel); }
 
   /* ===== Week / Day (swimlane) ===== */
   .swim-wrap { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--paper-raised); }
@@ -314,6 +318,9 @@
 
   /* Day view detail lanes */
   .day-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  /* The workshop split filter sits above the lane boxes, on the day view only. */
+  .day-eq-filter { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; color: var(--ink-soft); }
+  .day-eq-filter .view-switch button { padding: 5px 10px; }
   /* Sits above the three boxes, not inside them, so it never becomes a grid
      column of its own at narrow widths. */
   .fu-filter { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
@@ -681,6 +688,15 @@
       <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Optional. Leave blank for a drop-off that isn't occupying a bay.</div>
     </div>
 
+    <div id="f_equipmentField" class="field" style="display:none;">
+      <label for="f_equipment_type">Workshop equipment</label>
+      <select id="f_equipment_type">
+        <option value="robot">Robot mower</option>
+        <option value="general">General machinery</option>
+      </select>
+      <div style="font-size:11px; color:var(--ink-soft); margin-top:4px;">Splits this job into the Robots or General machinery column.</div>
+    </div>
+
     <div class="field">
       <label for="f_customer">Customer</label>
       <input type="text" id="f_customer" placeholder="Customer or site name">
@@ -979,7 +995,7 @@
     const job = (o) => Object.assign({ id: gid(), job_number: null, start_time: null, duration_mins: 60, travel_mins: 0,
       apprentice: false, customer: null, customer_email: null, address: null, mileage_miles: null, notes: null, make: null,
       model: null, serial_number: null, warranty: false, attended: false, status: "planned", install_details: null,
-      workshop_bay: null, linked_job_id: null, link_role: null, mileage_mode: "chain", mileage_override: null,
+      workshop_bay: null, equipment_type: null, linked_job_id: null, link_role: null, mileage_mode: "chain", mileage_override: null,
       distance_source: null, distance_error: null, follow_up_on: null, handover_signed: false, invoiced_at: null }, o);
     const db = {
       lanes: FALLBACK_LANES.map(l => ({ ...l })),
@@ -994,7 +1010,8 @@
         job({ date: iso(0), start_time: "08:30:00", duration_mins: 180, travel_mins: 30, lane_id: "tech1", type: "install", customer: "A. Sample", address: "1 Example Road, Torquay TQ1 1AA", make: "Husqvarna", model: "Automower 450X", status: "confirmed" }),
         job({ date: iso(0), start_time: "13:00:00", duration_mins: 60, travel_mins: 20, lane_id: "tech1", type: "site_visit", customer: "B. Demo", address: "2 Test Lane, Paignton TQ3 2BB", notes: "Blade noise" }),
         job({ date: iso(1), start_time: "09:00:00", duration_mins: 240, lane_id: "tech2", type: "install", customer: "C. Placeholder", address: "3 Mock Close, Newton Abbot TQ12 3CC" }),
-        job({ date: iso(0), start_time: "09:00:00", duration_mins: 240, lane_id: "workshop", type: "workshop", customer: "D. Example", make: "Stihl", model: "MS 261", workshop_bay: "bay1", warranty: true }),
+        job({ date: iso(0), start_time: "09:00:00", duration_mins: 240, lane_id: "workshop", type: "workshop", customer: "D. Example", make: "Stihl", model: "iMow 632", workshop_bay: "bay1", warranty: true, equipment_type: "robot" }),
+        job({ date: iso(0), start_time: "10:30:00", duration_mins: 120, lane_id: "workshop", type: "workshop", customer: "I. General", make: "Honda", model: "HRX 537", equipment_type: "general" }),
         job({ date: iso(-3), start_time: "09:00:00", lane_id: "tech1", type: "site_visit", customer: "G. Done", attended: true }),
         job({ date: iso(-6), start_time: "11:00:00", lane_id: "workshop", type: "workshop", customer: "H. Warranty", warranty: true, attended: true, invoiced_at: new Date(Date.now() - 12 * 864e5).toISOString() }),
         job({ date: iso(2), start_time: "10:00:00", duration_mins: 90, lane_id: "tech1", type: "fetch", customer: "E. Fake", address: "4 Pretend Way, Brixham TQ5 4DD" })
@@ -1101,7 +1118,7 @@
   // The diary grew columns after the first version shipped. Rather than assume they
   // all exist, probe once at boot and drop any we can't write. That way this file
   // keeps working against an older database while the migration rolls out.
-  const NEW_COLS = ["install_details","workshop_bay","linked_job_id","link_role","mileage_mode","mileage_override","distance_source","distance_error","follow_up_on","handover_signed"];
+  const NEW_COLS = ["install_details","workshop_bay","linked_job_id","link_role","mileage_mode","mileage_override","distance_source","distance_error","follow_up_on","handover_signed","equipment_type"];
   const CAPS = { probed: false, cols: {} };
   function capCol(name) { return !!CAPS.cols[name]; }
   function stripUnsupported(obj) {
@@ -1579,6 +1596,10 @@
     return !!(lane && /workshop|bay/i.test(lane.name || ""));
   }
   function workshopLane() { return state.lanes.find(l => isWorkshopLane(l.id)) || null; }
+  // A workshop job is a robot mower unless the form says it is general machinery.
+  // Jobs with no value are robots, which is what the old Workshop column becomes.
+  function equipmentOf(j) { return j && j.equipmentType === "general" ? "general" : "robot"; }
+  function equipmentLabel(eq) { return eq === "general" ? "General machinery" : "Robots"; }
 
   // ---------- App state ----------
   let sb = null;                  // supabase client
@@ -1594,6 +1615,8 @@
     workDayMins: 540,
     travelBuffer: Number(localStorage.getItem("fd.travelBuffer")) || 30,
     activeLanes: [],
+    // Day view only: show both workshop columns, or just one of them.
+    dayEquipment: (() => { const v = lsGet("fd.dayEquipment", "both"); return ["both","robot","general"].includes(v) ? v : "both"; })(),
     retentionDays: Number(localStorage.getItem("fd.retentionDays") || 30),
     settingsTable: true,
     // One row per clock on/off. Kept apart from jobs so the hours survive the
@@ -1663,6 +1686,7 @@
       status: r.status || "planned", outlookStatus: r.outlook_status || "not_connected", outlookThreadId: r.outlook_thread_id || null,
       installDetails: installDetails && typeof installDetails === "object" ? installDetails : {},
       workshopBay: r.workshop_bay || null,
+      equipmentType: r.equipment_type || "",
       linkedJobId: r.linked_job_id || null,
       linkRole: r.link_role || null,
       mileageMode: r.mileage_mode || "chain",
@@ -1685,6 +1709,7 @@
     const extras = {
       install_details: (j.installDetails && Object.keys(j.installDetails).length) ? j.installDetails : null,
       workshop_bay: j.workshopBay || null,
+      equipment_type: j.equipmentType || null,
       linked_job_id: j.linkedJobId || null,
       link_role: j.linkRole || null,
       mileage_mode: j.mileageMode || "chain",
@@ -2821,10 +2846,15 @@
       dayJobs.slice(0,3).forEach(j => {
         const lane = laneById(j.lane) || {color:"#999"};
         const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} ` : "";
+        // A workshop job is split by its equipment field. The month grid has no
+        // lane columns, so a small R/G tag carries the same distinction.
+        const eq = isWorkshopLane(j.lane) ? equipmentOf(j) : null;
+        const eqTag = eq ? `<span class="eq-tag ${eq}" title="Workshop – ${escapeAttr(equipmentLabel(eq))}">${eq === "general" ? "G" : "R"}</span>` : "";
         // A viewer's chip carries the basics only. Type and address go in the
         // tooltip so the cell stays readable at a glance.
-        const chipText = `${viewerNow()?"":confirmedTick(j)}${j.time?escapeHtml(j.time)+" ":""}${num}${escapeHtml(j.customer||typeLabel(j.type))}`;
-        const chipTitle = viewerNow() ? `${typeLabel(j.type)}${j.address?" · "+j.address:""}` : "";
+        const chipText = `${eqTag}${viewerNow()?"":confirmedTick(j)}${j.time?escapeHtml(j.time)+" ":""}${num}${escapeHtml(j.customer||typeLabel(j.type))}`;
+        const eqTitle = eq ? `Workshop – ${equipmentLabel(eq)}` : "";
+        const chipTitle = viewerNow() ? `${eqTitle ? eqTitle+" · " : ""}${typeLabel(j.type)}${j.address?" · "+j.address:""}` : eqTitle;
         html += `<div class="chip" style="border-color:${lane.color}; background:${lane.color}18;" data-job="${j.id}" title="${escapeAttr(chipTitle)}">${chipText}</div>`;
       });
       if (dayJobs.length > 3) html += `<div class="chip-more">+${dayJobs.length-3} more</div>`;
@@ -2847,6 +2877,15 @@
     const days = Array.from({length:7}, (_,i) => addDays(ws,i))
       .filter(d => { const w = d.getDay(); return w !== 0 && w !== 6; });
     const lanes = state.lanes.filter(l => state.activeLanes.includes(l.id));
+    // The workshop is one lane split by the job's equipment field, so it gets
+    // two rows here; every other lane stays one row.
+    const rows = [];
+    lanes.forEach(l => {
+      if (isWorkshopLane(l.id)) {
+        rows.push({ lane: l, eq: "robot", label: `${l.name} – Robots` });
+        rows.push({ lane: l, eq: "general", label: `${l.name} – General` });
+      } else rows.push({ lane: l, eq: null, label: l.name });
+    });
 
     const GRID_COLS = "120px repeat(5, 140px)";
     let head = `<div class="swim-wrap"><div class="swim-scroll"><div class="swim-head" style="grid-template-columns: ${GRID_COLS};"><div class="swim-head-cell">Team</div>`;
@@ -2856,16 +2895,17 @@
     head += `</div>`;
 
     let body = `<div class="swim-body">`;
-    lanes.forEach(lane => {
-      body += `<div class="swim-row" style="grid-template-columns: ${GRID_COLS};"><div class="swim-row-label"><span class="swatch" style="background:${lane.color}"></span>${escapeHtml(lane.name)}</div>`;
+    rows.forEach(row => {
+      const lane = row.lane;
+      body += `<div class="swim-row" style="grid-template-columns: ${GRID_COLS};"><div class="swim-row-label"><span class="swatch" style="background:${lane.color}"></span>${escapeHtml(row.label)}</div>`;
       days.forEach(d => {
         const dateStr = fmtISODate(d);
         const past = isPastDate(dateStr);
         const mins = past ? 0 : laneMinutesOn(dateStr, lane.id);
         const pct = isWorkshopLane(lane.id) ? null : Math.min(100, Math.round((mins/state.workDayMins)*100));
         const late = !past && laneRunsLate(dateStr, lane.id);
-        const jobs = diaryJobsOn(dateStr).filter(j => j.lane === lane.id).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
-        body += `<div class="swim-cell ${past?"past":""}" data-date="${dateStr}" data-lane="${lane.id}">`;
+        const jobs = diaryJobsOn(dateStr).filter(j => j.lane === lane.id && (!row.eq || equipmentOf(j) === row.eq)).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+        body += `<div class="swim-cell ${past?"past":""}" data-date="${dateStr}" data-lane="${lane.id}"${row.eq ? ` data-eq="${row.eq}"` : ""}>`;
         jobs.forEach(j => {
           const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
           body += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
@@ -2886,14 +2926,66 @@
       ? `<div class="past-notice">This week has started${pastCount ? ` — ${pastCount} job${pastCount===1?"":"s"} from it now live in Follow-up` : ""}.</div>` : "";
     el.innerHTML = notice + head + body;
     el.querySelectorAll(".job-block").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
-    if (session.isAdmin) el.querySelectorAll(".swim-cell").forEach(c => c.addEventListener("click", () => openJobModal(null, c.dataset.date, c.dataset.lane)));
+    if (session.isAdmin) el.querySelectorAll(".swim-cell").forEach(c => c.addEventListener("click", () => openJobModal(null, c.dataset.date, c.dataset.lane, c.dataset.eq || null)));
   }
 
   // ---------- Day view ----------
+  function dayJobBlock(j, lane) {
+    const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
+    const mine = canClock() ? myOpenSessionFor(j.id) : null;
+    const logged = clockedSecsForJob(j.id);
+    let clockHtml = "";
+    if (canClock()) {
+      clockHtml = mine
+        ? `<button type="button" class="clock-tag live" data-clock-off="${escapeHtml(j.id)}" style="border:none; cursor:pointer;">● ${formatElapsed(clockedSecs(mine))} · Stop ${phaseOf(mine) === PHASE_TRAVEL ? "travel" : "on site"}</button>`
+        : `<button type="button" class="ghost" data-clock-on="${escapeHtml(j.id)}" style="padding:2px 7px; font-size:10.5px;">Start on site</button>`;
+      if (logged && !mine) clockHtml += `<span class="clock-tag" title="Total clocked on this job">${hoursText(logged)} logged</span>`;
+    } else if (logged) {
+      clockHtml = `<span class="clock-tag" title="Total clocked on this job">${hoursText(logged)} logged</span>`;
+    }
+    return `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
+      <div class="job-time">${j.time?escapeHtml(j.time):"—"} · ${formatDuration(j.duration||0, state.workDayMins)}${j.travel && !(j.type === "workshop" || isWorkshopLane(j.lane))?` (+${j.travel} travel)`:""}</div>
+      <div class="job-cust">${confirmedTick(j)}${num}${escapeHtml(j.customer||"Untitled job")}${apprenticeTag(j)}${warrantyTag(j)}</div>
+      ${(j.make||j.model)?`<div class="job-meta">${escapeHtml([j.make,j.model].filter(Boolean).join(" "))}${j.serial?" · S/N "+escapeHtml(j.serial):""}</div>`:""}
+      <div class="job-meta">${typeLabel(j.type)}${j.address?` · ${escapeHtml(j.address)} · <a href="${mapsUrl(j.address)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--green); font-weight:600; text-decoration:none;">Maps ↗</a>`:""}</div>
+      <div class="job-meta" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:4px; align-items:center;">
+        <span class="status-pill status-${j.status||"planned"}">${statusLabel(j.status)}</span>
+        ${!isWorkshopLane(lane.id) && j.mileage ? `<span class="tag-miles">${Number(j.mileage).toFixed(1)} mi</span>` : ""}
+        ${j.workshopBay ? `<span class="tag-bay">${escapeHtml(j.workshopBay)}</span>` : ""}
+        ${j.linkRole ? `<span class="tag-chain">${escapeHtml(linkRoleLabel(j.linkRole))}</span>` : ""}
+        ${j.followUpOn ? `<span class="tag-chain">Follow-up ${escapeHtml(fmtUKDate(j.followUpOn))}</span>` : ""}
+        ${clockHtml}
+      </div>
+    </div>`;
+  }
+  function dayLaneBlock(lane, opts) {
+    const { label, equipment, jobs, dateStr, past } = opts;
+    const mins = past ? 0 : laneMinutesOn(dateStr, lane.id);
+    // A past day carries no plan, so a "0% of day" bar would just be noise.
+    const capText = past ? "—"
+      : (isWorkshopLane(lane.id) ? `${jobs.length} job${jobs.length===1?"":"s"}`
+                                : `${Math.min(999, Math.round((mins/state.workDayMins)*100))}% of day`);
+    let html = `<div class="day-lane">
+      <div class="day-lane-head">
+        <span class="swatch" style="background:${lane.color}"></span>
+        <strong style="flex:1;">${escapeHtml(label)}</strong>
+        <span class="cap-pct">${capText}</span>
+      </div>
+      <div class="day-lane-body${isWorkshopLane(lane.id) ? " ws-grid" : ""}" data-date="${dateStr}" data-lane="${lane.id}"${equipment ? ` data-eq="${equipment}"` : ""}>`;
+    if (!jobs.length) html += `<div class="empty-hint">No jobs${session.isAdmin?" — click to add one":""}</div>`;
+    // A day that has passed shows no mileage: its jobs now live in Follow-up.
+    const laneMiles = past ? 0 : milesForLaneDay(dateStr, lane.id);
+    if (laneMiles) html += `<div class="day-total-line" style="border-top:none;padding:0 0 4px;">${laneMiles.toFixed(1)} mi driven · £${money(laneMiles).toFixed(2)}</div>`;
+    jobs.forEach(j => { html += dayJobBlock(j, lane); });
+    if (laneRunsLate(dateStr, lane.id)) html += `<div class="job-meta" style="color:var(--danger); font-weight:600;">Back after ${minsToClock(timeToMins(state.workDayEnd))} at this rate</div>`;
+    html += `</div></div>`;
+    return html;
+  }
   function renderDay() {
     const el = document.getElementById("content");
     const dateStr = fmtISODate(cursorDate);
     const lanes = state.lanes.filter(l => state.activeLanes.includes(l.id));
+    const hasWorkshop = lanes.some(l => isWorkshopLane(l.id));
     const past = isPastDate(dateStr);
 
     let html = "";
@@ -2907,63 +2999,46 @@
             : `Its jobs are${where}.`);
       html += `</div>`;
     }
+    // Only the workshop has two columns, so the choice only appears with it on.
+    if (hasWorkshop) {
+      const eqChoices = [["both","Both"],["robot","Robots"],["general","General"]];
+      html += `<div class="day-eq-filter">
+        <span>Workshop:</span>
+        <div class="view-switch" role="group" aria-label="Workshop equipment to show">
+          ${eqChoices.map(([v,label]) => `<button type="button" data-eq-view="${v}" class="${state.dayEquipment === v ? "active" : ""}" aria-pressed="${state.dayEquipment === v}">${label}</button>`).join("")}
+        </div>
+      </div>`;
+    }
     html += `<div class="day-lanes">`;
     lanes.forEach(lane => {
       const jobs = diaryJobsOn(dateStr).filter(j => j.lane === lane.id).sort((a,b)=>(a.time||"").localeCompare(b.time||""));
-      const mins = past ? 0 : laneMinutesOn(dateStr, lane.id);
-      // A past day carries no plan, so a "0% of day" bar would just be noise.
-      const capText = past ? "—"
-        : (isWorkshopLane(lane.id) ? `${jobs.length} job${jobs.length===1?"":"s"}`
-                                  : `${Math.min(999, Math.round((mins/state.workDayMins)*100))}% of day`);
-      html += `<div class="day-lane">
-        <div class="day-lane-head">
-          <span class="swatch" style="background:${lane.color}"></span>
-          <strong style="flex:1;">${escapeHtml(lane.name)}</strong>
-          <span class="cap-pct">${capText}</span>
-        </div>
-        <div class="day-lane-body${isWorkshopLane(lane.id) ? " ws-grid" : ""}" data-date="${dateStr}" data-lane="${lane.id}">`;
-      if (!jobs.length) html += `<div class="empty-hint">No jobs${session.isAdmin?" — click to add one":""}</div>`;
-      // A day that has passed shows no mileage: its jobs now live in Follow-up.
-      const laneMiles = past ? 0 : milesForLaneDay(dateStr, lane.id);
-      if (laneMiles) html += `<div class="day-total-line" style="border-top:none;padding:0 0 4px;">${laneMiles.toFixed(1)} mi driven · £${money(laneMiles).toFixed(2)}</div>`;
-      jobs.forEach(j => {
-        const num = j.jobNumber ? `#${escapeHtml(j.jobNumber)} · ` : "";
-        const mine = canClock() ? myOpenSessionFor(j.id) : null;
-        const logged = clockedSecsForJob(j.id);
-        let clockHtml = "";
-        if (canClock()) {
-          clockHtml = mine
-            ? `<button type="button" class="clock-tag live" data-clock-off="${escapeHtml(j.id)}" style="border:none; cursor:pointer;">● ${formatElapsed(clockedSecs(mine))} · Stop ${phaseOf(mine) === PHASE_TRAVEL ? "travel" : "on site"}</button>`
-            : `<button type="button" class="ghost" data-clock-on="${escapeHtml(j.id)}" style="padding:2px 7px; font-size:10.5px;">Start on site</button>`;
-          if (logged && !mine) clockHtml += `<span class="clock-tag" title="Total clocked on this job">${hoursText(logged)} logged</span>`;
-        } else if (logged) {
-          clockHtml = `<span class="clock-tag" title="Total clocked on this job">${hoursText(logged)} logged</span>`;
-        }
-        html += `<div class="job-block" style="border-color:${lane.color};" data-job="${j.id}">
-          <div class="job-time">${j.time?escapeHtml(j.time):"—"} · ${formatDuration(j.duration||0, state.workDayMins)}${j.travel && !(j.type === "workshop" || isWorkshopLane(j.lane))?` (+${j.travel} travel)`:""}</div>
-          <div class="job-cust">${confirmedTick(j)}${num}${escapeHtml(j.customer||"Untitled job")}${apprenticeTag(j)}${warrantyTag(j)}</div>
-          ${(j.make||j.model)?`<div class="job-meta">${escapeHtml([j.make,j.model].filter(Boolean).join(" "))}${j.serial?" · S/N "+escapeHtml(j.serial):""}</div>`:""}
-          <div class="job-meta">${typeLabel(j.type)}${j.address?` · ${escapeHtml(j.address)} · <a href="${mapsUrl(j.address)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" style="color:var(--green); font-weight:600; text-decoration:none;">Maps ↗</a>`:""}</div>
-          <div class="job-meta" style="display:flex; gap:5px; flex-wrap:wrap; margin-top:4px; align-items:center;">
-            <span class="status-pill status-${j.status||"planned"}">${statusLabel(j.status)}</span>
-            ${!isWorkshopLane(lane.id) && j.mileage ? `<span class="tag-miles">${Number(j.mileage).toFixed(1)} mi</span>` : ""}
-            ${j.workshopBay ? `<span class="tag-bay">${escapeHtml(j.workshopBay)}</span>` : ""}
-            ${j.linkRole ? `<span class="tag-chain">${escapeHtml(linkRoleLabel(j.linkRole))}</span>` : ""}
-            ${j.followUpOn ? `<span class="tag-chain">Follow-up ${escapeHtml(fmtUKDate(j.followUpOn))}</span>` : ""}
-            ${clockHtml}
-          </div>
-        </div>`;
-      });
-      if (laneRunsLate(dateStr, lane.id)) html += `<div class="job-meta" style="color:var(--danger); font-weight:600;">Back after ${minsToClock(timeToMins(state.workDayEnd))} at this rate</div>`;
-      html += `</div></div>`;
+      if (isWorkshopLane(lane.id)) {
+        const eqs = state.dayEquipment === "both" ? ["robot", "general"] : [state.dayEquipment];
+        eqs.forEach(eq => {
+          html += dayLaneBlock(lane, {
+            label: `${lane.name} – ${equipmentLabel(eq)}`,
+            equipment: eq,
+            jobs: jobs.filter(j => equipmentOf(j) === eq),
+            dateStr, past
+          });
+        });
+      } else {
+        html += dayLaneBlock(lane, { label: lane.name, jobs, dateStr, past });
+      }
     });
     html += `</div>`;
     el.innerHTML = html;
+    el.querySelectorAll("[data-eq-view]").forEach(b => b.addEventListener("click", () => {
+      if (state.dayEquipment === b.dataset.eqView) return;
+      state.dayEquipment = b.dataset.eqView;
+      lsSet("fd.dayEquipment", state.dayEquipment);
+      render();
+    }));
     el.querySelectorAll(".job-block").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); openJobModal(b.dataset.job); }));
     el.querySelectorAll("[data-goto-followup]").forEach(a => a.addEventListener("click", (e) => { e.preventDefault(); setView("followup"); }));
     el.querySelectorAll("[data-clock-on]").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); clockOn(b.dataset.clockOn); }));
     el.querySelectorAll("[data-clock-off]").forEach(b => b.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); clockOff(); }));
-    if (session.isAdmin) el.querySelectorAll(".day-lane-body").forEach(c => c.addEventListener("click", (e) => { if (e.target.closest(".job-block")) return; openJobModal(null, c.dataset.date, c.dataset.lane); }));
+    if (session.isAdmin) el.querySelectorAll(".day-lane-body").forEach(c => c.addEventListener("click", (e) => { if (e.target.closest(".job-block")) return; openJobModal(null, c.dataset.date, c.dataset.lane, c.dataset.eq || null); }));
   }
 
   // ---------- Follow-up (past-date jobs) ----------
@@ -3726,6 +3801,7 @@
       ["Miles this job", j.mileage != null ? Number(j.mileage).toFixed(1) + " mi · £" + money(j.mileage).toFixed(2) : "—", "Bay", j.workshopBay || "—"],
       ["Attended", j.attended ? "Yes" : "No", "Handover signed", j.handoverSigned ? "Yes" : "Not yet"]
     ];
+    if (isWorkshopLane(j.lane)) rows.push(["Workshop equipment", equipmentLabel(equipmentOf(j)), "", ""]);
     let html = `<h1>Job card — ${escapeHtml(j.customer || "No customer")}</h1>
       <h2>${escapeHtml(fmtUKDate(j.date))} · ${escapeHtml(typeLabel(j.type))}${j.linkRole ? " · " + escapeHtml(linkRoleLabel(j.linkRole)) : ""}</h2>
       <table><tbody>${rows.map(r => `<tr><th>${escapeHtml(r[0])}</th><td>${escapeHtml(r[1])}</td><th>${escapeHtml(r[2])}</th><td>${escapeHtml(r[3])}</td></tr>`).join("")}</tbody></table>`;
@@ -3750,7 +3826,8 @@
       lane: wl.id, type: "workshop", customer: f.customer, customerEmail: f.customerEmail, address: "",
       mileage: 0, notes: `Collected in — ${f.notes || "no notes"}`, make: f.make, model: f.model, serial: f.serial,
       warranty: f.warranty, attended: false, status: "planned", apprentice: false,
-      linkRole: "workshop", linkedJobId: f.id, mileageMode: "chain", installDetails: Object.assign({}, f.installDetails)
+      linkRole: "workshop", linkedJobId: f.id, mileageMode: "chain", installDetails: Object.assign({}, f.installDetails),
+      equipmentType: f.equipmentType || "robot"
     };
     const { data, error } = await sb.from("jobs").insert(appJobToDb(w)).select();
     if (error) { alert("Couldn't book the workshop job: " + error.message); return; }
@@ -4594,6 +4671,8 @@
     document.getElementById("f_linkRoleField").style.display = (type === "fetch" || type === "workshop" || type === "deliver") ? "" : "none";
     const lane = document.getElementById("f_lane").value;
     document.getElementById("f_bayField").style.display = isWorkshopLane(lane) ? "" : "none";
+    const eqField = document.getElementById("f_equipmentField");
+    if (eqField) eqField.style.display = isWorkshopLane(lane) ? "" : "none";
     // A workshop job never travels: no travel buffer, no travel timer, no
     // mileage for invoicing. Hiding the fields keeps the form honest about it;
     // saving still forces travel to 0 so a stale buffer can't ride along.
@@ -4657,7 +4736,7 @@
     const viewer = viewerNow();
     const techEditable = viewer ? new Set() : new Set(["f_notes", "f_attended", "f_installwrap"]); // fields techs can still edit on an existing job
     ["f_jobnum","f_date","f_time","f_travel","f_duration","f_lane","f_type","f_customer","f_customeremail","f_address","f_notes","f_status","f_apprentice","f_make","f_model","f_serial","f_warranty","f_attended",
-      "f_mileageMode","f_mileageOverride","f_bay","f_linkrole"]
+      "f_mileageMode","f_mileageOverride","f_bay","f_linkrole","f_equipment_type"]
       .forEach(id => { document.getElementById(id).disabled = isAdmin ? false : !techEditable.has(id); });
     document.getElementById("saveJobBtn").style.display = viewer ? "none" : "";
     document.getElementById("saveJobBtn").textContent = isAdmin ? "Save job" : "Save notes";
@@ -4677,7 +4756,7 @@
     if (note) note.style.display = viewer ? "" : "none";
   }
 
-  function openJobModal(jobId, presetDate, presetLane) {
+  function openJobModal(jobId, presetDate, presetLane, presetEquipment) {
     // A viewer has no job form at all - the cards are display only.
     if (viewerNow()) { notify("Job details are office-only. Use \"Request job\" and the office will book it.", 6000); return; }
     pendingRequestId = null;
@@ -4729,6 +4808,7 @@
     document.getElementById("f_mileageMode").value = job ? (job.mileageMode || "chain") : "chain";
     document.getElementById("f_mileageOverride").value = job && job.mileageOverride != null ? job.mileageOverride : "";
     document.getElementById("f_bay").value = job ? (job.workshopBay || "") : "";
+    document.getElementById("f_equipment_type").value = job ? (job.equipmentType || "robot") : (presetEquipment || "robot");
     document.getElementById("f_linkrole").value = job ? (job.linkRole || "") : "";
     const issueEl = document.getElementById("distanceIssue");
     if (job && job.distanceError) {
@@ -4867,6 +4947,7 @@
       mileageMode: document.getElementById("f_mileageMode").value,
       mileageOverride: document.getElementById("f_mileageOverride").value ? Number(document.getElementById("f_mileageOverride").value) : null,
       workshopBay: document.getElementById("f_bay").value || null,
+      equipmentType: isWorkshopLane(document.getElementById("f_lane").value) ? (document.getElementById("f_equipment_type").value || "robot") : null,
       linkRole: document.getElementById("f_linkrole").value || null,
       installDetails: readInstallFields() || (id ? (state.jobs.find(j => j.id === id) || {}).installDetails : {}) || {},
       followUpOn: (document.getElementById("f_follow_up_on") || {}).value || null,
