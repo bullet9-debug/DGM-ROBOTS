@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Machine check-in</title>
+<style>
+  :root {
+    --ink: #22202a;
+    --muted: #6d6879;
+    --line: #d9d4e7;
+    --accent: #6B5B8E;
+    --accent-dark: #574a75;
+    --bg: #f4f2f8;
+    --paper: #ffffff;
+    --danger: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 24px 18px 80px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header { text-align: center; margin: 8px 0 18px; }
+  .brand { color: var(--accent); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; }
+  h1 { font-size: clamp(26px, 6vw, 36px); line-height: 1.15; margin: 6px 0 8px; }
+  .sub { color: var(--muted); margin: 0; }
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(40, 30, 70, .07);
+    padding: 24px;
+  }
+  label { display: block; font-weight: 600; margin: 0 0 14px; }
+  label span { display: block; margin-bottom: 6px; }
+  input {
+    width: 100%;
+    min-height: 52px;
+    padding: 12px 14px;
+    font: inherit;
+    color: var(--ink);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    outline: none;
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(107, 91, 142, .16); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .primary, .ghost, .machine, .link {
+    font: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .primary {
+    width: 100%;
+    min-height: 54px;
+    margin-top: 6px;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .primary:hover { background: var(--accent-dark); }
+  .primary:disabled { opacity: .55; cursor: default; }
+  .ghost {
+    min-height: 48px;
+    margin-top: 12px;
+    padding: 10px 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .ghost:disabled { opacity: .55; cursor: default; }
+  .link {
+    display: inline-block;
+    margin: 14px 0 4px;
+    padding: 4px 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: underline;
+  }
+  .machine-grid { display: grid; gap: 10px; margin: 6px 0 4px; }
+  .machine {
+    width: 100%;
+    min-height: 64px;
+    padding: 12px 16px;
+    text-align: left;
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--ink);
+  }
+  .machine:hover, .machine:focus { border-color: var(--accent); }
+  .machine strong { display: block; font-size: 20px; letter-spacing: .02em; }
+  .machine span { display: block; color: var(--muted); margin-top: 2px; }
+  .machine:disabled { opacity: .55; }
+  .lead { margin: 0 0 14px; }
+  .note { color: var(--muted); margin: 0 0 12px; }
+  .error {
+    margin: 12px 0 4px;
+    padding: 10px 12px;
+    border: 1px solid #f0c4c0;
+    border-radius: 8px;
+    background: #fdf1f0;
+    color: var(--danger);
+    font-weight: 600;
+  }
+  .error[hidden], #addWrap[hidden], section[hidden], #notListed[hidden] { display: none; }
+  #done { text-align: center; padding: 8px 0 4px; }
+  #done .tick {
+    width: 64px; height: 64px; margin: 0 auto 10px;
+    border-radius: 50%;
+    background: #e8f4ec; color: #217a3c;
+    font-size: 36px; line-height: 64px; font-weight: 700;
+  }
+  #done h2 { margin: 0 0 6px; font-size: 26px; }
+  #done p { margin: 6px 0; }
+  #done .ref { font-weight: 700; }
+  #done .serial { color: var(--muted); letter-spacing: .04em; }
+  #countdown { text-align: center; margin: 14px 0 0; }
+  footer { text-align: center; color: var(--muted); font-size: 14px; margin-top: 18px; }
+  #demoBar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    padding: 7px 10px; background: var(--accent); color: #fff;
+    text-align: center; font: 600 12px/1.2 system-ui, sans-serif;
+  }
+  @media (max-width: 560px) {
+    body { padding: 16px 12px 80px; }
+    .card { padding: 18px; }
+    .row2 { grid-template-columns: 1fr; gap: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">Field Diary</div>
+    <h1>Machine check-in</h1>
+    <p class="sub">Enter your details, then choose the machine you have brought in.</p>
+  </header>
+
+  <main class="card">
+    <section id="step1">
+      <form id="form1" novalidate>
+        <div class="row2">
+          <label><span>First name</span><input id="first" name="first" autocomplete="off" autocapitalize="words" required></label>
+          <label><span>Surname</span><input id="surname" name="surname" autocomplete="off" autocapitalize="words" required></label>
+        </div>
+        <label><span>Mobile number</span><input id="mobile" name="mobile" type="tel" inputmode="tel" autocomplete="off" required></label>
+        <label><span>Email address</span><input id="email" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="none" required></label>
+        <label><span>Address</span><input id="address" name="address" autocomplete="off" autocapitalize="words" required></label>
+        <label><span>Postcode</span><input id="postcode" name="postcode" autocomplete="off" autocapitalize="characters" required></label>
+        <div id="error1" class="error" role="alert" hidden></div>
+        <button class="primary" id="findBtn" type="submit">Find my machine</button>
+      </form>
+    </section>
+
+    <section id="step2" hidden>
+      <p id="customerLine" class="lead"></p>
+      <div id="machineList" class="machine-grid"></div>
+      <button class="link" id="notListed" type="button">My machine isn't listed</button>
+      <div id="error2b" class="error" role="alert" hidden></div>
+      <form id="form2" novalidate hidden>
+        <label><span>Machine serial number</span><input id="serial" name="serial" autocomplete="off" autocapitalize="characters" required></label>
+        <div class="row2">
+          <label><span>Make (optional)</span><input id="make" name="make" autocomplete="off" autocapitalize="words"></label>
+          <label><span>Model (optional)</span><input id="model" name="model" autocomplete="off" autocapitalize="words"></label>
+        </div>
+        <button class="primary" id="addBtn" type="submit">Add machine and check in</button>
+      </form>
+      <button class="ghost" id="backBtn" type="button">Back</button>
+    </section>
+
+    <section id="step3" hidden>
+      <div id="done"></div>
+      <p id="countdown" class="sub"></p>
+      <button class="ghost" id="againBtn" type="button">Start again</button>
+    </section>
+  </main>
+
+  <footer>If you need help, please ask a member of staff.</footer>
+</div>
+<div id="demoBar" hidden>DEMO MODE - sample data, nothing is saved. Refresh to reset.</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
+<script>
+(function () {
+  "use strict";
+
+  var SUPABASE_URL = "https://jejzwjtydmrrabxyyaol.supabase.co";
+  var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Implanp3anR5ZG1ycmFieHl5YW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4MDU1NjgsImV4cCI6MjEwNTM4MTU2OH0.Mt00WPuDTMcZN7hzB8Hqrc_VwAHrNDiwVnut8IAhf0M";
+  var demoParam = new URLSearchParams(location.search).get("demo");
+  var DEMO = demoParam === "1"
+    || (demoParam !== "0" && (location.protocol === "file:" || location.hostname === "localhost"));
+  var RESET_SECS = new URLSearchParams(location.search).get("reset") === "0" ? 0 : 30;
+  var sb = null;
+  var busy = false;
+  var draft = null;
+  var machines = [];
+  var resetTimer = null;
+  var countdownTimer = null;
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function normText(v) { return String(v || "").trim().toLowerCase().replace(/\s+/g, " "); }
+  function normSerial(v) { return normText(v).replace(/[^a-z0-9]/g, ""); }
+  function normPostcode(v) { return normText(v).replace(/\s+/g, ""); }
+
+  function setError(id, msg) {
+    var e = $(id);
+    if (!e) return;
+    e.textContent = msg || "";
+    e.hidden = !msg;
+  }
+  function clearErrors() { setError("error1", ""); setError("error2b", ""); }
+  function step(n) {
+    [1, 2, 3].forEach(function (i) { $("step" + i).hidden = i !== n; });
+  }
+  function focusEl(id) { setTimeout(function () { var e = $(id); if (e) e.focus(); }, 40); }
+
+  function readForm() {
+    return {
+      first: $("first").value.trim(),
+      surname: $("surname").value.trim(),
+      mobile: $("mobile").value.trim(),
+      email: $("email").value.trim(),
+      address: $("address").value.trim(),
+      postcode: $("postcode").value.trim()
+    };
+  }
+  function formError(d) {
+    if (!d.first || !d.surname) return "Please enter your first name and surname.";
+    if (!d.mobile) return "Please enter your mobile number.";
+    if (!d.email || !/^\S+@\S+\.\S+$/.test(d.email)) return "Please enter a valid email address.";
+    if (!d.address) return "Please enter your address.";
+    if (!d.postcode) return "Please enter your postcode.";
+    return "";
+  }
+  function friendly(e) {
+    var msg = String((e && e.message) || e || "");
+    if (/failed to fetch|networkerror|network request failed|load failed/i.test(msg)) {
+      return "No connection. Please ask a member of staff.";
+    }
+    return "Something went wrong. Please ask a member of staff.";
+  }
+  function dataError(data) {
+    var code = data && data.error;
+    if (code === "missing") return "Please check every box and try again.";
+    if (code === "email") return "Please check your email address and try again.";
+    if (code === "long") return "One of the answers is too long. Please check and try again.";
+    if (code === "serial") return "Please enter the machine serial number.";
+    return "That check-in didn't save. Please ask a member of staff.";
+  }
+  function setBusy(on, label) {
+    busy = on;
+    var find = $("findBtn"), add = $("addBtn"), back = $("backBtn"), not = $("notListed");
+    if (find) { find.disabled = on; if (label && label.find) find.textContent = label.find; }
+    if (add) { add.disabled = on; if (label && label.add) add.textContent = label.add; }
+    if (back) back.disabled = on;
+    if (not) not.disabled = on;
+    document.querySelectorAll("#machineList .machine").forEach(function (b) { b.disabled = on; });
+  }
+
+  // ---------- demo data (only with ?demo=1) ----------
+  var demoDb = {
+    customers: [
+      { first: "Alex", surname: "Sample", mobile: "07700 900111", email: "alex.sample@example.com",
+        address: "1 Example Road, Torquay", postcode: "TQ1 1AA" }
+    ],
+    machines: [
+      { email: "alex.sample@example.com", serial: "AM450X-12345",
+        make: "Husqvarna", model: "Automower 450X" }
+    ],
+    jobs: [
+      { serial: "AM450X-12345", outcome: "running", job_number: "1001" }
+    ]
+  };
+  function demoCustomer(d) {
+    return demoDb.customers.filter(function (c) {
+      return normText(c.email) === normText(d.email)
+        || (normPostcode(c.postcode) === normPostcode(d.postcode)
+            && normText(c.address) === normText(d.address));
+    })[0] || null;
+  }
+  function demoRpc(name, a) {
+    if (name === "fd_checkin_lookup") {
+      var c = demoCustomer({ email: a.p_email, address: a.p_address, postcode: a.p_postcode });
+      if (!c) return { data: { found: false, machines: [] }, error: null };
+      var list = demoDb.machines.filter(function (m) { return m.email === c.email; })
+        .map(function (m) { return { serial: m.serial, make: m.make, model: m.model }; });
+      return { data: { found: true, machines: list }, error: null };
+    }
+    if (name === "fd_checkin_submit") {
+      var c2 = demoCustomer({
+        email: a.p_email, address: a.p_address, postcode: a.p_postcode
+      });
+      if (!c2) {
+        c2 = { first: a.p_first_name, surname: a.p_surname, mobile: a.p_mobile, email: a.p_email,
+               address: a.p_address, postcode: a.p_postcode };
+        demoDb.customers.push(c2);
+      }
+      var m2 = demoDb.machines.filter(function (m) { return normSerial(m.serial) === normSerial(a.p_serial); })[0];
+      if (!m2) {
+        m2 = { email: c2.email, serial: a.p_serial, make: a.p_make, model: a.p_model };
+        demoDb.machines.push(m2);
+      }
+      var j2 = demoDb.jobs.filter(function (j) {
+        return normSerial(j.serial) === normSerial(a.p_serial) && j.outcome === "running";
+      })[0];
+      if (!j2) {
+        j2 = { serial: a.p_serial, outcome: "created", job_number: null };
+        demoDb.jobs.push(j2);
+      }
+      return { data: { ok: true, outcome: j2.outcome, job_number: j2.job_number, serial: a.p_serial }, error: null };
+    }
+    return { data: null, error: { message: "unknown function" } };
+  }
+  function rpc(name, args) {
+    if (DEMO) return Promise.resolve(demoRpc(name, args));
+    return sb.rpc(name, args);
+  }
+
+  // ---------- steps ----------
+  function findMachines() {
+    if (busy) return;
+    clearErrors();
+    var d = readForm();
+    var err = formError(d);
+    if (err) { setError("error1", err); focusEl(!d.first ? "first" : !d.surname ? "surname" : !d.mobile ? "mobile" : !d.email ? "email" : !d.address ? "address" : "postcode"); return; }
+
+    setBusy(true, { find: "Looking..." });
+    rpc("fd_checkin_lookup", { p_email: d.email, p_address: d.address, p_postcode: d.postcode })
+      .then(function (res) {
+        if (res.error) throw res.error;
+        draft = d;
+        var data = res.data || {};
+        machines = Array.isArray(data.machines) ? data.machines : [];
+        $("customerLine").textContent = data.found
+          ? "We found your details, " + d.first + ". Choose the machine you have brought in."
+          : "We couldn't find those details on file, " + d.first + ". Add your machine below.";
+        renderMachines();
+        step(2);
+        if (!machines.length) focusEl("serial");
+      })
+      .catch(function (e) { setError("error1", friendly(e)); })
+      .then(function () { setBusy(false, { find: "Find my machine" }); });
+  }
+
+  function renderMachines() {
+    var wrap = $("machineList");
+    wrap.innerHTML = "";
+    var form = $("form2");
+    if (!machines.length) {
+      var p = document.createElement("p");
+      p.className = "note";
+      p.textContent = "No machines on file yet. Add the one you have brought in.";
+      wrap.appendChild(p);
+      $("notListed").hidden = true;
+      form.hidden = false;
+      return;
+    }
+    machines.forEach(function (m) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "machine";
+      var strong = document.createElement("strong");
+      strong.textContent = m.serial;
+      b.appendChild(strong);
+      var sub = [m.make, m.model].filter(Boolean).join(" \u00b7 ");
+      if (sub) {
+        var span = document.createElement("span");
+        span.textContent = sub;
+        b.appendChild(span);
+      }
+      b.addEventListener("click", function () { submitCheckin(m.serial, m.make, m.model); });
+      wrap.appendChild(b);
+    });
+    $("notListed").hidden = false;
+    form.hidden = true;
+    setError("error2b", "");
+  }
+
+  function showAdd() {
+    $("form2").hidden = false;
+    $("notListed").hidden = true;
+    $("error2b").hidden = true;
+    focusEl("serial");
+  }
+
+  function submitCheckin(serial, make, model) {
+    if (busy) return;
+    clearErrors();
+    var d = draft || readForm();
+    if (!serial) { setError("error2b", "Please enter the machine serial number."); return; }
+    setBusy(true, { add: "Checking in..." });
+    rpc("fd_checkin_submit", {
+      p_first_name: d.first, p_surname: d.surname, p_mobile: d.mobile, p_email: d.email,
+      p_address: d.address, p_postcode: d.postcode, p_serial: serial,
+      p_make: make || "", p_model: model || ""
+    }).then(function (res) {
+      if (res.error) throw res.error;
+      if (!res.data || res.data.ok !== true) { setError("error2b", dataError(res.data)); return; }
+      showDone(d, res.data);
+    }).catch(function (e) {
+      setError("error2b", friendly(e));
+    }).then(function () {
+      setBusy(false, { add: "Add machine and check in" });
+    });
+  }
+
+  function showDone(d, data) {
+    var running = data.outcome === "running";
+    var ref = running
+      ? (data.job_number ? "Job number " + esc(data.job_number) : "Your job is already on the diary")
+      : "A new job card has been raised";
+    $("done").innerHTML =
+      '<div class="tick">&#10003;</div>' +
+      "<h2>Thank you, " + esc(d.first) + "</h2>" +
+      "<p>You're checked in.</p>" +
+      '<p class="ref">' + ref + "</p>" +
+      '<p class="serial">' + esc(data.serial || "") + "</p>" +
+      "<p>The office has been told.</p>";
+    step(3);
+    if (RESET_SECS > 0) startReset(RESET_SECS);
+  }
+
+  function startReset(secs) {
+    clearTimers();
+    var left = secs;
+    $("countdown").textContent = "Starting again in " + left + " seconds.";
+    countdownTimer = setInterval(function () {
+      left -= 1;
+      if (left <= 0) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+        startAgain();
+        return;
+      }
+      $("countdown").textContent = "Starting again in " + left + " seconds.";
+    }, 1000);
+    resetTimer = setTimeout(startAgain, secs * 1000);
+  }
+  function clearTimers() {
+    if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  }
+
+  function startAgain() {
+    clearTimers();
+    clearErrors();
+    ["first", "surname", "mobile", "email", "address", "postcode", "serial", "make", "model"].forEach(function (id) {
+      var e = $(id); if (e) e.value = "";
+    });
+    draft = null;
+    machines = [];
+    $("machineList").innerHTML = "";
+    $("form2").hidden = true;
+    $("notListed").hidden = false;
+    $("done").innerHTML = "";
+    $("countdown").textContent = "";
+    step(1);
+    focusEl("first");
+  }
+
+  function backToDetails() {
+    clearErrors();
+    $("form2").hidden = true;
+    $("notListed").hidden = false;
+    step(1);
+  }
+
+  // ---------- wiring ----------
+  $("form1").addEventListener("submit", function (e) { e.preventDefault(); findMachines(); });
+  $("form2").addEventListener("submit", function (e) {
+    e.preventDefault();
+    submitCheckin($("serial").value.trim(), $("make").value.trim(), $("model").value.trim());
+  });
+  $("notListed").addEventListener("click", showAdd);
+  $("backBtn").addEventListener("click", backToDetails);
+  $("againBtn").addEventListener("click", startAgain);
+
+  if (DEMO) {
+    $("demoBar").hidden = false;
+  } else if (window.supabase) {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+  } else {
+    setError("error1", "Check-in is unavailable. Please ask a member of staff.");
+    $("findBtn").disabled = true;
+  }
+
+  step(1);
+  focusEl("first");
+})();
+</script>
+</body>
+</html>
