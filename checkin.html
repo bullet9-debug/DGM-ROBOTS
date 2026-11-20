@@ -116,7 +116,7 @@
     color: var(--danger);
     font-weight: 600;
   }
-  .error[hidden], #addWrap[hidden], section[hidden], #notListed[hidden] { display: none; }
+  .error[hidden], section[hidden], #notListed[hidden], #checkinBtn[hidden], #noMachineNote[hidden] { display: none; }
   #done { text-align: center; padding: 8px 0 4px; }
   #done .tick {
     width: 64px; height: 64px; margin: 0 auto 10px;
@@ -147,7 +147,7 @@
   <header>
     <div class="brand">Field Diary</div>
     <h1>Machine check-in</h1>
-    <p class="sub">Enter your details, then choose the machine you have brought in.</p>
+    <p class="sub">Enter your details, then choose your machine if it's listed.</p>
   </header>
 
   <main class="card">
@@ -169,16 +169,10 @@
     <section id="step2" hidden>
       <p id="customerLine" class="lead"></p>
       <div id="machineList" class="machine-grid"></div>
+      <p id="noMachineNote" class="note" hidden></p>
+      <button class="primary" id="checkinBtn" type="button" hidden>Check in</button>
       <button class="link" id="notListed" type="button">My machine isn't listed</button>
       <div id="error2b" class="error" role="alert" hidden></div>
-      <form id="form2" novalidate hidden>
-        <label><span>Machine serial number</span><input id="serial" name="serial" autocomplete="off" autocapitalize="characters" required></label>
-        <div class="row2">
-          <label><span>Make (optional)</span><input id="make" name="make" autocomplete="off" autocapitalize="words"></label>
-          <label><span>Model (optional)</span><input id="model" name="model" autocomplete="off" autocapitalize="words"></label>
-        </div>
-        <button class="primary" id="addBtn" type="submit">Add machine and check in</button>
-      </form>
       <button class="ghost" id="backBtn" type="button">Back</button>
     </section>
 
@@ -263,14 +257,13 @@
     if (code === "missing") return "Please check every box and try again.";
     if (code === "email") return "Please check your email address and try again.";
     if (code === "long") return "One of the answers is too long. Please check and try again.";
-    if (code === "serial") return "Please enter the machine serial number.";
     return "That check-in didn't save. Please ask a member of staff.";
   }
   function setBusy(on, label) {
     busy = on;
-    var find = $("findBtn"), add = $("addBtn"), back = $("backBtn"), not = $("notListed");
+    var find = $("findBtn"), checkin = $("checkinBtn"), back = $("backBtn"), not = $("notListed");
     if (find) { find.disabled = on; if (label && label.find) find.textContent = label.find; }
-    if (add) { add.disabled = on; if (label && label.add) add.textContent = label.add; }
+    if (checkin) { checkin.disabled = on; if (label && label.checkin) checkin.textContent = label.checkin; }
     if (back) back.disabled = on;
     if (not) not.disabled = on;
     document.querySelectorAll("#machineList .machine").forEach(function (b) { b.disabled = on; });
@@ -314,19 +307,21 @@
                address: a.p_address, postcode: a.p_postcode };
         demoDb.customers.push(c2);
       }
-      var m2 = demoDb.machines.filter(function (m) { return normSerial(m.serial) === normSerial(a.p_serial); })[0];
-      if (!m2) {
-        m2 = { email: c2.email, serial: a.p_serial, make: a.p_make, model: a.p_model };
-        demoDb.machines.push(m2);
+      if (a.p_serial) {
+        var m2 = demoDb.machines.filter(function (m) { return normSerial(m.serial) === normSerial(a.p_serial); })[0];
+        if (!m2) {
+          m2 = { email: c2.email, serial: a.p_serial, make: a.p_make, model: a.p_model };
+          demoDb.machines.push(m2);
+        }
       }
-      var j2 = demoDb.jobs.filter(function (j) {
+      var j2 = a.p_serial ? demoDb.jobs.filter(function (j) {
         return normSerial(j.serial) === normSerial(a.p_serial) && j.outcome === "running";
-      })[0];
+      })[0] : null;
       if (!j2) {
-        j2 = { serial: a.p_serial, outcome: "created", job_number: null };
+        j2 = { serial: a.p_serial || null, outcome: "created", job_number: null };
         demoDb.jobs.push(j2);
       }
-      return { data: { ok: true, outcome: j2.outcome, job_number: j2.job_number, serial: a.p_serial }, error: null };
+      return { data: { ok: true, outcome: j2.outcome, job_number: j2.job_number, serial: a.p_serial || null }, error: null };
     }
     return { data: null, error: { message: "unknown function" } };
   }
@@ -355,23 +350,27 @@
           : "We couldn't find those details on file, " + d.first + ". Add your machine below.";
         renderMachines();
         step(2);
-        if (!machines.length) focusEl("serial");
       })
       .catch(function (e) { setError("error1", friendly(e)); })
       .then(function () { setBusy(false, { find: "Find my machine" }); });
   }
 
+  function showNoMachine(msg) {
+    $("noMachineNote").textContent = msg;
+    $("noMachineNote").hidden = false;
+    $("checkinBtn").hidden = false;
+    $("notListed").hidden = true;
+    focusEl("checkinBtn");
+  }
+
   function renderMachines() {
     var wrap = $("machineList");
     wrap.innerHTML = "";
-    var form = $("form2");
+    setError("error2b", "");
+    $("noMachineNote").hidden = true;
+    $("checkinBtn").hidden = true;
     if (!machines.length) {
-      var p = document.createElement("p");
-      p.className = "note";
-      p.textContent = "No machines on file yet. Add the one you have brought in.";
-      wrap.appendChild(p);
-      $("notListed").hidden = true;
-      form.hidden = false;
+      showNoMachine("No machine on file for you. The office will identify it from your details.");
       return;
     }
     machines.forEach(function (m) {
@@ -391,26 +390,16 @@
       wrap.appendChild(b);
     });
     $("notListed").hidden = false;
-    form.hidden = true;
-    setError("error2b", "");
-  }
-
-  function showAdd() {
-    $("form2").hidden = false;
-    $("notListed").hidden = true;
-    $("error2b").hidden = true;
-    focusEl("serial");
   }
 
   function submitCheckin(serial, make, model) {
     if (busy) return;
     clearErrors();
     var d = draft || readForm();
-    if (!serial) { setError("error2b", "Please enter the machine serial number."); return; }
-    setBusy(true, { add: "Checking in..." });
+    setBusy(true, { checkin: "Checking in..." });
     rpc("fd_checkin_submit", {
       p_first_name: d.first, p_surname: d.surname, p_mobile: d.mobile, p_email: d.email,
-      p_address: d.address, p_postcode: d.postcode, p_serial: serial,
+      p_address: d.address, p_postcode: d.postcode, p_serial: serial || "",
       p_make: make || "", p_model: model || ""
     }).then(function (res) {
       if (res.error) throw res.error;
@@ -419,7 +408,7 @@
     }).catch(function (e) {
       setError("error2b", friendly(e));
     }).then(function () {
-      setBusy(false, { add: "Add machine and check in" });
+      setBusy(false, { checkin: "Check in" });
     });
   }
 
@@ -427,13 +416,13 @@
     var running = data.outcome === "running";
     var ref = running
       ? (data.job_number ? "Job number " + esc(data.job_number) : "Your job is already on the diary")
-      : "A new job card has been raised";
+      : (data.serial ? "A new job card has been raised" : "Your details are with the office");
     $("done").innerHTML =
       '<div class="tick">&#10003;</div>' +
       "<h2>Thank you, " + esc(d.first) + "</h2>" +
       "<p>You're checked in.</p>" +
       '<p class="ref">' + ref + "</p>" +
-      '<p class="serial">' + esc(data.serial || "") + "</p>" +
+      (data.serial ? '<p class="serial">' + esc(data.serial) + "</p>" : "") +
       "<p>The office has been told.</p>";
     step(3);
     if (RESET_SECS > 0) startReset(RESET_SECS);
@@ -463,13 +452,14 @@
   function startAgain() {
     clearTimers();
     clearErrors();
-    ["first", "surname", "mobile", "email", "address", "postcode", "serial", "make", "model"].forEach(function (id) {
+    ["first", "surname", "mobile", "email", "address", "postcode"].forEach(function (id) {
       var e = $(id); if (e) e.value = "";
     });
     draft = null;
     machines = [];
     $("machineList").innerHTML = "";
-    $("form2").hidden = true;
+    $("noMachineNote").hidden = true;
+    $("checkinBtn").hidden = true;
     $("notListed").hidden = false;
     $("done").innerHTML = "";
     $("countdown").textContent = "";
@@ -479,18 +469,19 @@
 
   function backToDetails() {
     clearErrors();
-    $("form2").hidden = true;
+    $("noMachineNote").hidden = true;
+    $("checkinBtn").hidden = true;
     $("notListed").hidden = false;
     step(1);
   }
 
   // ---------- wiring ----------
   $("form1").addEventListener("submit", function (e) { e.preventDefault(); findMachines(); });
-  $("form2").addEventListener("submit", function (e) {
-    e.preventDefault();
-    submitCheckin($("serial").value.trim(), $("make").value.trim(), $("model").value.trim());
+  $("checkinBtn").addEventListener("click", function () { submitCheckin(""); });
+  $("notListed").addEventListener("click", function () {
+    clearErrors();
+    showNoMachine("That's fine. The office will identify the machine from your details.");
   });
-  $("notListed").addEventListener("click", showAdd);
   $("backBtn").addEventListener("click", backToDetails);
   $("againBtn").addEventListener("click", startAgain);
 
