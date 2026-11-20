@@ -5089,7 +5089,7 @@
             <div class="when">${escapeHtml(when)}</div>
           </div>
           <div class="line">${escapeHtml(outcome)}</div>
-          <div class="line">${escapeHtml(c.serial || "")}${c.mobile ? ` · ${escapeHtml(c.mobile)}` : ""}${c.customer_email ? ` · ${escapeHtml(c.customer_email)}` : ""}</div>
+          <div class="line">${c.serial ? escapeHtml(c.serial) : "<b>Machine details needed</b>"}${c.mobile ? ` · ${escapeHtml(c.mobile)}` : ""}${c.customer_email ? ` · ${escapeHtml(c.customer_email)}` : ""}</div>
           <div class="line">${c.status === "new" ? "New" : "Seen"}</div>
           <div class="actions">
             ${c.job_id ? `<button class="primary ci-open" data-job="${escapeAttr(c.job_id)}">Open job</button>` : ""}
