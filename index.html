@@ -109,6 +109,26 @@
   .field { margin-bottom: 12px; }
   .field-row { display: flex; gap: 10px; }
   .field-row .field { flex: 1; }
+  .date-picker-row .date-picker-field { flex: 1.25; }
+  .dp-title { font-size: 11px; color: var(--ink-soft); margin-bottom: 4px; }
+  .dp-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; }
+  .dp-day { padding: 4px 0; font-size: 11px; border-radius: 4px; }
+  .dp-day.green { background: var(--green-soft); border-color: var(--green); }
+  .dp-day.amber { background: var(--amber-soft); border-color: var(--amber); }
+  .dp-day.red { background: var(--danger-soft); border-color: var(--danger); }
+  .dp-day.busy { opacity: .55; cursor: not-allowed; }
+  .dp-day.past { opacity: .22; }
+  .dp-day.sel { outline: 2px solid var(--ink); font-weight: 700; }
+  .dp-legend { display: flex; gap: 7px; font-size: 10px; color: var(--ink-soft); margin-top: 4px; }
+  .dp-legend span { display: inline-flex; align-items: center; gap: 3px; }
+  .dp-legend i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .dp-legend .green { background: var(--green); }
+  .dp-legend .amber { background: var(--amber); }
+  .dp-legend .red { background: var(--danger); }
+  @media (max-width: 620px) {
+    .date-picker-row { flex-direction: column; }
+    .date-picker-row .field { flex: none; }
+  }
 
   /* ===== Shell ===== */
   .shell { display: flex; min-height: 100vh; }
@@ -655,7 +675,7 @@
       <div id="suggestPanel"></div>
     </div>
 
-    <div class="field-row">
+    <div class="field-row date-picker-row">
       <div class="field">
         <label for="f_jobnum">Job number</label>
         <input type="text" id="f_jobnum" placeholder="e.g. 10482">
@@ -664,6 +684,10 @@
         <label for="f_date">Date</label>
         <input type="date" id="f_date">
         <div id="dateConfirm" style="font-size:12px; margin-top:5px; color:var(--ink-soft);"></div>
+      </div>
+      <div class="field date-picker-field">
+        <label>Free dates</label>
+        <div id="datePicker" class="date-picker"></div>
       </div>
     </div>
 
@@ -979,7 +1003,7 @@
     <div class="kiosk-head">
       <div>
         <div class="display">Machine check-in</div>
-        <div class="kiosk-sub">Enter your details, then choose the machine you have brought in.</div>
+        <div class="kiosk-sub">Enter your details and we'll let the office know you're here.</div>
       </div>
       <button class="ghost" id="checkinCloseBtn">Close</button>
     </div>
@@ -1016,35 +1040,7 @@
       <div class="kiosk-error" id="ci_error"></div>
       <div class="modal-actions">
         <div></div>
-        <button class="primary big" id="ci_findBtn">Find my machines</button>
-      </div>
-    </div>
-
-    <div id="checkinStep2" style="display:none;">
-      <p class="kiosk-note" id="ci_customerLine"></p>
-      <div id="ci_machineList"></div>
-      <div id="ci_addWrap" style="display:none; margin-top:14px;">
-        <div class="sub-head" style="border-top:none; padding-top:0;">Add this machine</div>
-        <div class="field-row">
-          <div class="field">
-            <label for="ci_serial">Serial number</label>
-            <input type="text" id="ci_serial" autocomplete="off">
-          </div>
-          <div class="field">
-            <label for="ci_make">Make (optional)</label>
-            <input type="text" id="ci_make" autocomplete="off">
-          </div>
-          <div class="field">
-            <label for="ci_model">Model (optional)</label>
-            <input type="text" id="ci_model" autocomplete="off">
-          </div>
-        </div>
-        <div class="kiosk-error" id="ci_addError"></div>
-        <button class="primary big" id="ci_addBtn">Add machine and check in</button>
-      </div>
-      <div class="modal-actions">
-        <button class="ghost" id="ci_backBtn">Back</button>
-        <button class="ghost" id="ci_notListedBtn">My machine isn't listed</button>
+        <button class="primary big" id="ci_submitBtn">Check in</button>
       </div>
     </div>
 
@@ -1053,7 +1049,7 @@
       <div class="modal-actions">
         <div></div>
         <div class="right">
-          <button class="ghost" id="ci_againBtn">Check in another machine</button>
+          <button class="ghost" id="ci_againBtn">Check in another customer</button>
           <button class="primary" id="ci_doneCloseBtn">Done</button>
         </div>
       </div>
@@ -1586,6 +1582,7 @@
   // travel buffers) long enough for this job's duration + travel buffer.
   const NEARBY_MILES_THRESHOLD = 10;
   const SUGGEST_SEARCH_DAYS = 21;
+  const DATE_PICKER_AMBER_MINS = 180;
   let suggestState = { token: 0, siteCoords: null };
   const distanceCache = {}; // "lat,lon|lat,lon" -> miles (one-way), reuses geocodeCache's coords
   async function drivingMilesCached(a, b) {
@@ -1612,6 +1609,15 @@
       if (b.end > candidate) candidate = b.end;
     }
     return (candidate + neededMins <= dayEndMin) ? candidate : null;
+  }
+  function laneFreeMinutes(lane, dateStr, excludeId) {
+    const dayStart = timeToMins(state.workDayStart), dayEnd = timeToMins(state.workDayEnd);
+    let free = Math.max(0, dayEnd - dayStart);
+    dayBusyIntervals(lane, dateStr, excludeId).forEach(b => {
+      const from = Math.max(b.start, dayStart), to = Math.min(b.end, dayEnd);
+      if (to > from) free -= to - from;
+    });
+    return Math.max(0, free);
   }
   function renderSuggestPanel(html) { document.getElementById("suggestPanel").innerHTML = html; }
   async function suggestDates() {
@@ -1694,6 +1700,54 @@
   function updateDateConfirm() {
     document.getElementById("dateConfirm").textContent = fmtUKDate(document.getElementById("f_date").value);
   }
+  function datePickerDates() {
+    const lane = document.getElementById("f_lane").value;
+    const duration = Number(document.getElementById("f_duration").value) || 0;
+    const travel = isWorkshopLane(lane) ? 0 : (Number(document.getElementById("f_travel").value) || 0);
+    const needed = duration + travel;
+    const excludeId = document.getElementById("jobId").value || null;
+    const dayStart = timeToMins(state.workDayStart), dayEnd = timeToMins(state.workDayEnd);
+    const today = fmtISODate(new Date());
+    const monday = startOfWeek(new Date());
+    const out = [];
+    for (let i = 0; i < 21; i++) {
+      const d = addDays(monday, i);
+      if (d.getDay() === 0 || d.getDay() === 6) continue;
+      const iso = fmtISODate(d);
+      const past = iso < today;
+      const busy = dayBusyIntervals(lane, iso, excludeId);
+      const slot = !past && needed > 0 ? findFreeSlot(busy, needed, dayStart, dayEnd) : null;
+      const spare = laneFreeMinutes(lane, iso, excludeId) - needed;
+      const late = !past && laneRunsLate(iso, lane);
+      const level = past || late || slot == null ? "red"
+        : spare < DATE_PICKER_AMBER_MINS ? "amber" : "green";
+      out.push({ iso, day: d.getDate(), past, slot, spare, level });
+    }
+    return out;
+  }
+  function renderDatePicker() {
+    const el = document.getElementById("datePicker");
+    if (!el) return;
+    const dates = datePickerDates();
+    const selected = document.getElementById("f_date").value;
+    const lane = laneById(document.getElementById("f_lane").value);
+    const first = dates.length ? new Date(dates[0].iso + "T00:00:00") : startOfDay(new Date());
+    const last = dates.length ? new Date(dates[dates.length-1].iso + "T00:00:00") : first;
+    const label = first.getFullYear() === last.getFullYear() && first.getMonth() === last.getMonth()
+      ? first.toLocaleDateString("en-GB", { month: "long", year: "numeric" })
+      : first.toLocaleDateString("en-GB", { month: "short" }) + " – " + last.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+    el.innerHTML = `<div class="dp-title">${escapeHtml(label)} · ${escapeHtml(lane ? lane.name : "selected tech")}</div>` +
+      `<div class="dp-grid">` + dates.map(d => {
+        const free = d.slot != null;
+        const cls = ["dp-day", d.level, free ? "free" : "busy", d.past ? "past" : "", d.iso === selected ? "sel" : ""].filter(Boolean).join(" ");
+        const spareHours = Math.max(0, d.spare) / 60;
+        const tip = d.past ? "Past date"
+          : d.level === "red" ? (d.slot == null ? "No free slot long enough" : "This tech already runs late")
+          : `${d.level === "green" ? "Roomy" : "Getting full"} · about ${spareHours.toFixed(1)}h spare after this job · free from ${minsToHHMM(d.slot)}`;
+        return `<button type="button" class="${cls}" data-date="${d.iso}" ${free ? "" : "disabled"} title="${tip}">${d.day}</button>`;
+      }).join("") + `</div>` +
+      `<div class="dp-legend"><span><i class="green"></i>roomy</span><span><i class="amber"></i>tight</span><span><i class="red"></i>full</span></div>`;
+  }
   function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate()+n); return x; }
   function startOfWeek(d) { const x = startOfDay(d); const day = (x.getDay()+6)%7; return addDays(x, -day); }
   function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
@@ -1734,11 +1788,9 @@
     lanes: FALLBACK_LANES.slice(),
     jobs: [],
     jobRequests: [],
-    // HQ customer check-in. customers/machines survive between visits; the
-    // check-in rows are what the office queue reads. checkinReady goes false
-    // when the migration has not been run, so the kiosk can say which file.
-    customers: [],
-    machines: [],
+    // HQ customer check-in. One row per visit for the office queue, holding
+    // only the details the customer typed. checkinReady goes false when the
+    // migration has not been run, so the kiosk can say which file.
     checkins: [],
     checkinReady: true,
     bays: [],
@@ -2599,8 +2651,6 @@
     await loadBays();
     await loadTechs();
     await loadTimeLog();
-    await loadCustomers();
-    await loadMachines();
     await loadCheckins();
     await rollForwardWorkshopJobs();
     await loadSettings();
@@ -2629,36 +2679,17 @@
     const { data, error } = await sb.from("bays").select("*").order("sort_order");
     if (!error && data) state.bays = data;
   }
-  // Customers, machines and check-ins arrive with supabase-customer-checkin.sql.
-  // If that has not been run, customers fails and the kiosk says so by name
-  // rather than looking like a broken button.
-  async function loadCustomers() {
-    const res = await sb.from("customers").select("*");
-    if (res.error) {
-      if (isNetworkError(res)) return;
-      state.checkinReady = false;
-      state.customers = [];
-      return;
-    }
-    state.checkinReady = true;
-    state.customers = res.data || [];
-  }
-  async function loadMachines() {
-    const res = await sb.from("machines").select("*");
-    if (res.error) {
-      if (isNetworkError(res)) return;
-      state.machines = [];
-      return;
-    }
-    state.machines = res.data || [];
-  }
+  // Check-ins arrive with supabase-customer-checkin.sql. If that has not been
+  // run, this fails and the kiosk says so by name rather than looking broken.
   async function loadCheckins() {
     const res = await sb.from("job_checkins").select("*").order("created_at", { ascending: false });
     if (res.error) {
       if (isNetworkError(res)) return;
+      state.checkinReady = false;
       state.checkins = [];
       return;
     }
+    state.checkinReady = true;
     state.checkins = res.data || [];
   }
   // Until supabase-auth.sql has been run there is no email column, and every
@@ -4772,21 +4803,14 @@
   }
 
   // ---------- HQ customer check-in ----------
-  // The tablet form. The customer never sees a job number: the app finds the
-  // running job from the machine serial, or makes a job card and puts the
-  // check-in in the office queue. One customer can have several machines.
+  // The tablet form and this office form do one thing: pass the six details
+  // the customer typed to the office queue. No machine list, no running-job
+  // match, no job card - the office decides what job, if any, follows.
   // Needs supabase-customer-checkin.sql.
-  let kioskCustomer = null;
-  let kioskDraft = null;
-
   function pendingCheckins() { return state.checkins.filter(c => c.status === "new"); }
-  function normText(v) { return String(v || "").trim().toLowerCase().replace(/\s+/g, " "); }
-  function normSerial(v) { return normText(v).replace(/[^a-z0-9]/g, ""); }
-  function normPostcode(v) { return normText(v).replace(/\s+/g, ""); }
 
   function kioskStep(n) {
     document.getElementById("checkinStep1").style.display = n === 1 ? "" : "none";
-    document.getElementById("checkinStep2").style.display = n === 2 ? "" : "none";
     document.getElementById("checkinStep3").style.display = n === 3 ? "" : "none";
   }
   function kioskError(id, msg) {
@@ -4801,16 +4825,11 @@
       alert("Customer check-in needs the database tables.\n\nRun Greg\\supabase-customer-checkin.sql in Supabase, then reload the schema cache, then try again.");
       return;
     }
-    kioskCustomer = null;
-    kioskDraft = null;
-    ["ci_first","ci_surname","ci_mobile","ci_email","ci_address","ci_postcode","ci_serial","ci_make","ci_model"].forEach(id => {
+    ["ci_first","ci_surname","ci_mobile","ci_email","ci_address","ci_postcode"].forEach(id => {
       const e = document.getElementById(id);
       if (e) e.value = "";
     });
     kioskError("ci_error", "");
-    kioskError("ci_addError", "");
-    document.getElementById("ci_addWrap").style.display = "none";
-    document.getElementById("ci_machineList").innerHTML = "";
     kioskStep(1);
     document.getElementById("checkinOverlay").classList.add("open");
     setTimeout(() => { const e = document.getElementById("ci_first"); if (e) e.focus(); }, 30);
@@ -4835,221 +4854,44 @@
     if (!d.postcode) return "Please enter your postcode.";
     return "";
   }
-  function findKnownCustomer(d) {
-    return state.customers.find(c => {
-      const emailHit = d.email && normText(c.email) === normText(d.email);
-      const addressHit = d.postcode && c.postcode
-        && normPostcode(c.postcode) === normPostcode(d.postcode)
-        && normText(c.address) === normText(d.address);
-      return emailHit || addressHit;
-    }) || null;
-  }
-  function jobMatchesCustomer(j, customer, d) {
-    if (customer && j.customerEmail && normText(j.customerEmail) === normText(customer.email)) return true;
-    if (d.email && j.customerEmail && normText(j.customerEmail) === normText(d.email)) return true;
-    const where = normText(j.address);
-    if (!where) return false;
-    if (d.postcode && normPostcode(where).indexOf(normPostcode(d.postcode)) !== -1) return true;
-    return !!d.address && where.indexOf(normText(d.address)) !== -1;
-  }
-  // Machines on file for this customer, plus any serial already sitting on one
-  // of their jobs. That second half is what makes the form useful on day one,
-  // before the machines table has been filled by earlier check-ins.
-  function machinesForCustomer(customer, d) {
-    const out = [];
-    const seen = Object.create(null);
-    const add = (serial, make, model, id) => {
-      const k = normSerial(serial);
-      if (!k || seen[k]) return;
-      seen[k] = true;
-      out.push({ serial: String(serial).trim(), make: make || "", model: model || "", id: id || null });
-    };
-    if (customer) state.machines.filter(m => m.customer_id === customer.id).forEach(m => add(m.serial, m.make, m.model, m.id));
-    state.jobs.slice()
-      .filter(j => j.serial && jobMatchesCustomer(j, customer, d))
-      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
-      .forEach(j => add(j.serial, j.make, j.model, null));
-    return out;
-  }
-  function runningJobForSerial(serial) {
-    const key = normSerial(serial);
-    if (!key) return null;
-    const today = fmtISODate(new Date());
-    const found = state.jobs.filter(j =>
-      normSerial(j.serial) === key && !j.attended && !j.invoicedAt && (!j.date || j.date <= today));
-    found.sort((a, b) => {
-      const rank = (j) => (j.date === today ? 0 : 10) + ((j.type === "workshop" || isWorkshopLane(j.lane)) ? 0 : 1);
-      return rank(a) - rank(b) || String(b.date).localeCompare(String(a.date));
-    });
-    return found[0] || null;
-  }
-
-  async function findCheckinMachines() {
+  async function submitCheckin() {
     const d = readCheckinForm();
     const err = checkinFormError(d);
     if (err) { kioskError("ci_error", err); return; }
+    if (!state.checkinReady) { notify("Check-in is not set up on the database yet.", 7000); return; }
     kioskError("ci_error", "");
-    const btn = document.getElementById("ci_findBtn");
+    const btn = document.getElementById("ci_submitBtn");
     btn.disabled = true;
     try {
-      await loadCustomers();
-      await loadMachines();
-    } finally { btn.disabled = false; }
-    if (!state.checkinReady) {
-      kioskError("ci_error", "Check-in is not set up on the database yet. Ask the office to run supabase-customer-checkin.sql.");
-      return;
-    }
-    kioskDraft = d;
-    kioskCustomer = findKnownCustomer(d);
-    const machines = machinesForCustomer(kioskCustomer, d);
-    document.getElementById("ci_customerLine").textContent = kioskCustomer
-      ? `We found your details, ${d.firstName}. Choose the machine you have brought in.`
-      : `We couldn't find those details on file, ${d.firstName}. Add your machine below and we'll check you in.`;
-    renderKioskMachines(machines);
-    kioskStep(2);
-  }
-
-  function renderKioskMachines(machines) {
-    const wrap = document.getElementById("ci_machineList");
-    if (!machines.length) {
-      wrap.innerHTML = `<p class="kiosk-note">No machines on file yet. Add the one you have brought in.</p>`;
-      document.getElementById("ci_addWrap").style.display = "";
-      kioskStep(2);
-      setTimeout(() => { const e = document.getElementById("ci_serial"); if (e) e.focus(); }, 30);
-      return;
-    }
-    wrap.innerHTML = `<div class="machine-grid">${machines.map(m => {
-      const sub = [m.make, m.model].filter(Boolean).join(" · ");
-      return `<button class="machine-pick ghost" data-serial="${escapeAttr(m.serial)}" data-make="${escapeAttr(m.make)}" data-model="${escapeAttr(m.model)}">
-        <strong>${escapeHtml(m.serial)}</strong>${sub ? `<span>${escapeHtml(sub)}</span>` : ""}
-      </button>`;
-    }).join("")}</div>`;
-    wrap.querySelectorAll(".machine-pick").forEach(b => b.addEventListener("click", () => {
-      completeCheckin(b.dataset.serial, b.dataset.make, b.dataset.model);
-    }));
-    document.getElementById("ci_addWrap").style.display = "none";
-  }
-
-  async function addMachineAndCheckin() {
-    const serial = document.getElementById("ci_serial").value.trim();
-    if (!serial) { kioskError("ci_addError", "Please enter the machine serial number."); return; }
-    kioskError("ci_addError", "");
-    await completeCheckin(serial, document.getElementById("ci_make").value.trim(), document.getElementById("ci_model").value.trim());
-  }
-
-  // Make sure the customer and the machine exist before the check-in points at
-  // them. A customer found only through an old job still gets a proper row.
-  async function ensureCustomerAndMachine(d, serial, make, model) {
-    let customer = kioskCustomer;
-    if (!customer) {
-      const row = {
-        id: newUuid(), first_name: d.firstName, surname: d.surname, mobile: d.mobile,
-        email: d.email, address: d.address, postcode: d.postcode
-      };
-      const res = await sb.from("customers").insert(row);
-      if (res.error) throw new Error("customer:" + (res.error.message || "insert failed"));
-      customer = row;
-      state.customers.push(Object.assign({ created_at: new Date().toISOString() }, row));
-      kioskCustomer = customer;
-    }
-    let machine = state.machines.find(m => m.customer_id === customer.id && normSerial(m.serial) === normSerial(serial)) || null;
-    if (!machine) {
-      const existing = state.machines.find(m => normSerial(m.serial) === normSerial(serial));
-      if (existing) {
-        // The serial is already on file under another customer row. Use it
-        // rather than failing the unique index; the office can tidy the record.
-        machine = existing;
-      } else {
-        const row = { id: newUuid(), customer_id: customer.id, serial: serial, make: make || null, model: model || null };
-        const res = await sb.from("machines").insert(row);
-        if (res.error) throw new Error("machine:" + (res.error.message || "insert failed"));
-        machine = row;
-        state.machines.push(Object.assign({ created_at: new Date().toISOString() }, row));
+      const res = await sb.rpc("fd_checkin_submit", {
+        p_first_name: d.firstName, p_surname: d.surname, p_mobile: d.mobile,
+        p_email: d.email, p_address: d.address, p_postcode: d.postcode
+      });
+      if (res.error) throw new Error(res.error.message || "check-in failed");
+      if (!res.data || res.data.ok !== true) {
+        kioskError("ci_error", "That check-in didn't save. Please try again.");
+        return;
       }
-    }
-    return { customer, machine };
-  }
-
-  async function completeCheckin(serial, make, model) {
-    const d = kioskDraft || readCheckinForm();
-    if (!state.checkinReady) { notify("Check-in is not set up on the database yet.", 7000); return; }
-    const buttons = document.querySelectorAll("#ci_machineList .machine-pick, #ci_addBtn");
-    buttons.forEach(b => { b.disabled = true; });
-    try {
-      const { customer, machine } = await ensureCustomerAndMachine(d, serial, make, model);
-      const running = runningJobForSerial(serial);
-      const now = new Date();
-      const today = fmtISODate(now);
-      const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-      let jobId = running ? running.id : null;
-      let jobNumber = running ? (running.jobNumber || "") : "";
-
-      if (!running) {
-        jobId = newUuid();
-        const lane = state.lanes.find(l => l.id === "workshop") || state.lanes[0] || { id: "workshop" };
-        const customerName = [d.firstName, d.surname].filter(Boolean).join(" ");
-        const fullAddress = [d.address, d.postcode].filter(Boolean).join(", ");
-        const appJob = {
-          id: jobId, jobNumber: "", date: today, time, duration: DEFAULT_DURATION_BY_TYPE.workshop || 120,
-          travel: 0, lane: lane.id, apprentice: false, type: "workshop",
-          customer: customerName, customerEmail: d.email, address: fullAddress,
-          mileage: null, notes: `Checked in at HQ on ${today} ${time}, from the tablet check-in form.`,
-          make: make || "", model: model || "", serial: serial, warranty: false, attended: false,
-          status: "planned", equipmentType: isWorkshopLane(lane.id) ? "robot" : null,
-          workshopBay: null, linkedJobId: null, linkRole: null, installDetails: {},
-          mileageMode: "chain", mileageOverride: null, distanceSource: null, distanceError: null,
-          followUpOn: null, handoverSigned: false
-        };
-        const dbRow = appJobToDb(appJob);
-        dbRow.id = jobId;
-        const res = await sb.from("jobs").insert(dbRow);
-        if (res.error) throw new Error("job:" + (res.error.message || "insert failed"));
-      }
-
-      const checkin = {
-        id: newUuid(),
-        created_at: now.toISOString(),
-        customer_id: customer.id || null,
-        machine_id: machine.id || null,
-        job_id: jobId,
-        serial: serial,
-        customer_name: [d.firstName, d.surname].filter(Boolean).join(" "),
-        customer_email: d.email,
-        mobile: d.mobile,
-        postcode: d.postcode,
-        outcome: running ? "running" : "created",
-        job_number: jobNumber || null,
-        status: "new"
-      };
-      const res = await sb.from("job_checkins").insert(checkin);
-      if (res.error) throw new Error("checkin:" + (res.error.message || "insert failed"));
-      state.checkins.unshift(Object.assign({ created_at: now.toISOString() }, checkin));
-
-      showCheckinDone(d, serial, running, jobNumber);
-      await loadJobs();
+      showCheckinDone(d);
       await loadCheckins();
       render();
     } catch (e) {
       const msg = String(e && e.message || e);
       const plain = /failed to fetch|networkerror|network request failed|load failed/i.test(msg);
-      alert(plain
-        ? "No signal — a check-in needs a connection to reach the office. Please ask a member of staff."
-        : "Sorry, that check-in didn't save.\n\n" + msg.split(":").slice(1).join(":"));
+      kioskError("ci_error", plain
+        ? "No signal — the office hasn't had your details. Please try again."
+        : "Sorry, that check-in didn't save. " + msg);
     } finally {
-      buttons.forEach(b => { b.disabled = false; });
+      btn.disabled = false;
     }
   }
 
-  function showCheckinDone(d, serial, running, jobNumber) {
-    const ref = running
-      ? (jobNumber ? `Job number ${escapeHtml(jobNumber)}` : "Your job is already on the diary")
-      : "A new job card has been raised";
+  function showCheckinDone(d) {
     document.getElementById("ci_done").innerHTML = `
       <div class="tick">&#10003;</div>
       <h3>Thank you, ${escapeHtml(d.firstName)}</h3>
       <p>You're checked in.</p>
-      <p class="ref">${ref}</p>
-      <p style="margin-top:8px;">${escapeHtml(serial)}</p>
+      <p>Your details are with the office.</p>
       <p>The office has been told.</p>`;
     kioskStep(3);
   }
@@ -5080,26 +4922,22 @@
       </div>
       ${open.map(c => {
         const when = new Date(c.created_at).toLocaleString(undefined, { day:"numeric", month:"short", hour:"2-digit", minute:"2-digit" });
-        const outcome = c.outcome === "running"
-          ? `Already on the diary${c.job_number ? ` · job #${escapeHtml(c.job_number)}` : ""}`
-          : "New job card made";
+        const where = [c.address, c.postcode].filter(Boolean).join(", ");
         return `<div class="checkin-row ${c.status === "new" ? "new" : ""}" data-checkin="${c.id}">
           <div style="display:flex; justify-content:space-between; gap:10px; align-items:baseline;">
             <div class="who">${escapeHtml(c.customer_name || "(no name)")}</div>
             <div class="when">${escapeHtml(when)}</div>
           </div>
-          <div class="line">${escapeHtml(outcome)}</div>
-          <div class="line">${c.serial ? escapeHtml(c.serial) : "<b>Machine details needed</b>"}${c.mobile ? ` · ${escapeHtml(c.mobile)}` : ""}${c.customer_email ? ` · ${escapeHtml(c.customer_email)}` : ""}</div>
+          <div class="line">${escapeHtml([c.mobile, c.customer_email].filter(Boolean).join(" · "))}</div>
+          ${where ? `<div class="line">${escapeHtml(where)}</div>` : ""}
           <div class="line">${c.status === "new" ? "New" : "Seen"}</div>
           <div class="actions">
-            ${c.job_id ? `<button class="primary ci-open" data-job="${escapeAttr(c.job_id)}">Open job</button>` : ""}
             ${c.status === "new" ? `<button class="ghost ci-seen" data-checkin="${c.id}">Mark seen</button>` : ""}
             <button class="ghost ci-done" data-checkin="${c.id}">Done</button>
           </div>
         </div>`;
       }).join("")}
     </div>`;
-    el.querySelectorAll(".ci-open").forEach(b => b.addEventListener("click", () => openJobModal(b.dataset.job)));
     el.querySelectorAll(".ci-seen").forEach(b => b.addEventListener("click", () => setCheckinStatus(b.dataset.checkin, "seen")));
     el.querySelectorAll(".ci-done").forEach(b => b.addEventListener("click", () => setCheckinStatus(b.dataset.checkin, "done")));
     wireTablet();
@@ -5365,6 +5203,7 @@
     document.getElementById("printCardBtn").style.display = job && capCol("install_details") ? "inline-block" : "none";
     updateApprenticeVisibility();
     setModalReadOnly(session.isAdmin);
+    renderDatePicker();
     if (!job) document.getElementById("deleteJobBtn").style.display = "none";
     stopTimerTick();
     if (job) { refreshTimerDisplays(); timerTickHandle = setInterval(refreshTimerDisplays, 1000); }
@@ -5373,6 +5212,7 @@
   document.getElementById("f_type").addEventListener("change", (e) => {
     if (modalIsNewJob) document.getElementById("f_duration").value = defaultDurationForType(e.target.value);
     updateJobTypeVisibility();
+    renderDatePicker();
   });
   // Once the user opens or closes a collapsed section, stop auto-opening it.
   ["moreDetails", "installDetails"].forEach(id => {
@@ -5380,12 +5220,12 @@
     const sum = det && det.querySelector("summary");
     if (sum) sum.addEventListener("click", () => { touchedSections[sectionKey(id)] = true; });
   });
-  document.getElementById("f_lane").addEventListener("change", () => { updateApprenticeVisibility(); populateBaySelect(); debouncedUpdateMileage(); });
+  document.getElementById("f_lane").addEventListener("change", () => { updateApprenticeVisibility(); populateBaySelect(); debouncedUpdateMileage(); renderDatePicker(); });
   document.getElementById("f_address").addEventListener("input", updateMapsLink);
   document.getElementById("f_address").addEventListener("input", debouncedUpdateMileage);
-  document.getElementById("f_date").addEventListener("input", updateDateConfirm);
+  document.getElementById("f_date").addEventListener("input", () => { updateDateConfirm(); renderDatePicker(); });
   document.getElementById("f_time").addEventListener("change", debouncedUpdateMileage);
-  document.getElementById("f_duration").addEventListener("change", suggestDates);
+  document.getElementById("f_duration").addEventListener("change", () => { suggestDates(); renderDatePicker(); });
   document.getElementById("f_mileageMode").addEventListener("change", () => {
     updateMileage();
     if (!document.getElementById("f_mileageOverride").value) recalcDayMileage(document.getElementById("f_date").value, document.getElementById("f_lane").value).then(render);
@@ -5399,7 +5239,7 @@
       updateMileage();
     }
   });
-  document.getElementById("f_travel").addEventListener("input", debounce(suggestDates, 400));
+  document.getElementById("f_travel").addEventListener("input", debounce(() => { suggestDates(); renderDatePicker(); }, 400));
   document.getElementById("f_addBayBtn").addEventListener("click", async () => {
     const before = document.getElementById("f_bay").value;
     await addBay();
@@ -5415,6 +5255,14 @@
     document.getElementById("f_lane").value = btn.dataset.lane;
     updateDateConfirm();
     updateApprenticeVisibility();
+    renderDatePicker();
+  });
+  document.getElementById("datePicker").addEventListener("click", (e) => {
+    const btn = e.target.closest(".dp-day");
+    if (!btn || btn.disabled) return;
+    document.getElementById("f_date").value = btn.dataset.date;
+    updateDateConfirm();
+    renderDatePicker();
   });
 
   function closeModal() { document.getElementById("overlay").classList.remove("open"); stopTimerTick(); pendingRequestId = null; }
@@ -5575,19 +5423,12 @@
   document.getElementById("requestSubmitBtn").addEventListener("click", submitJobRequest);
   document.getElementById("checkinBtn").addEventListener("click", openCheckinKiosk);
   document.getElementById("checkinCloseBtn").addEventListener("click", closeCheckinKiosk);
-  document.getElementById("ci_findBtn").addEventListener("click", findCheckinMachines);
-  document.getElementById("ci_backBtn").addEventListener("click", () => kioskStep(1));
-  document.getElementById("ci_notListedBtn").addEventListener("click", () => {
-    const w = document.getElementById("ci_addWrap");
-    w.style.display = w.style.display === "none" ? "" : "none";
-    if (w.style.display !== "none") document.getElementById("ci_serial").focus();
-  });
-  document.getElementById("ci_addBtn").addEventListener("click", addMachineAndCheckin);
+  document.getElementById("ci_submitBtn").addEventListener("click", submitCheckin);
   document.getElementById("ci_againBtn").addEventListener("click", openCheckinKiosk);
   document.getElementById("ci_doneCloseBtn").addEventListener("click", closeCheckinKiosk);
   document.getElementById("checkinOverlay").addEventListener("click", (e) => { if (e.target.id === "checkinOverlay") closeCheckinKiosk(); });
   document.getElementById("checkinStep1").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); findCheckinMachines(); }
+    if (e.key === "Enter") { e.preventDefault(); submitCheckin(); }
   });
   document.getElementById("deleteJobBtn").addEventListener("click", deleteCurrentJob);
   document.getElementById("overlay").addEventListener("click", (e) => { if (e.target.id === "overlay") closeModal(); });
