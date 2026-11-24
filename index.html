@@ -4936,7 +4936,7 @@
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     const tabletBtn = `<button class="ghost ci-tablet" type="button">Open tablet check-in</button>`;
     const wireTablet = () => el.querySelectorAll(".ci-tablet").forEach(b =>
-      b.addEventListener("click", () => window.open("checkin.html", "_blank", "noopener")));
+      b.addEventListener("click", () => window.open("tablet-checkin.html", "_blank", "noopener")));
     if (!open.length) {
       el.innerHTML = `<div class="empty-hint" style="padding:20px;">
         <p style="margin:0 0 10px;">No customer check-ins waiting. Use <b>Check in</b> here for a walk-in, or leave the tablet page open at HQ.</p>
