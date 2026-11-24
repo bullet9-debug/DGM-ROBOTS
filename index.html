@@ -1188,10 +1188,40 @@
       return api;
     }
     const chan = { on(_e, f, cb) { listeners.push({ table: f.table, cb }); return chan; }, subscribe() { return chan; } };
+    function rpc(name, args) {
+      if (name !== "fd_checkin_submit") return Promise.resolve({ data: null, error: { message: "unknown rpc " + name } });
+      const a = args || {};
+      const first = String(a.p_first_name || "").trim();
+      const surname = String(a.p_surname || "").trim();
+      const mobile = String(a.p_mobile || "").trim();
+      const email = String(a.p_email || "").trim();
+      const address = String(a.p_address || "").trim();
+      const postcode = String(a.p_postcode || "").trim();
+      if (!first || !surname || !mobile || !email || !address || !postcode || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        return Promise.resolve({ data: { ok: false, error: "missing" }, error: null });
+      }
+      const emailKey = email.toLowerCase().replace(/\s+/g, " ");
+      const mobileKey = mobile.toLowerCase().replace(/\s+/g, " ");
+      const recent = db.job_checkins.some(r => {
+        const rowEmail = String(r.customer_email || "").toLowerCase().replace(/\s+/g, " ");
+        const rowMobile = String(r.mobile || "").toLowerCase().replace(/\s+/g, " ");
+        return rowEmail === emailKey && rowMobile === mobileKey && Date.now() - new Date(r.created_at).getTime() < 2 * 60 * 1000;
+      });
+      if (!recent) {
+        db.job_checkins.push({
+          id: gid(), created_at: new Date().toISOString(),
+          customer_name: first + " " + surname, customer_email: email,
+          mobile: mobile, address: address, postcode: postcode, status: "new"
+        });
+        fire("job_checkins");
+      }
+      return Promise.resolve({ data: { ok: true }, error: null });
+    }
     return {
       isDemo: true,
       from: query,
       channel: () => chan,
+      rpc: rpc,
       auth: {
         getSession: async () => ({ data: { session: { user: { email: userEmail } } }, error: null }),
         signOut: async () => ({ error: null }),

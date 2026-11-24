@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Machine check-in</title>
+<style>
+  :root {
+    --ink: #22202a;
+    --muted: #6d6879;
+    --line: #d9d4e7;
+    --accent: #6B5B8E;
+    --accent-dark: #574a75;
+    --bg: #f4f2f8;
+    --paper: #ffffff;
+    --danger: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 24px 18px 80px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header { text-align: center; margin: 8px 0 18px; }
+  .brand { color: var(--accent); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; }
+  h1 { font-size: clamp(26px, 6vw, 36px); line-height: 1.15; margin: 6px 0 8px; }
+  .sub { color: var(--muted); margin: 0; }
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(40, 30, 70, .07);
+    padding: 24px;
+  }
+  label { display: block; font-weight: 600; margin: 0 0 14px; }
+  label span { display: block; margin-bottom: 6px; }
+  input {
+    width: 100%;
+    min-height: 52px;
+    padding: 12px 14px;
+    font: inherit;
+    color: var(--ink);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    outline: none;
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(107, 91, 142, .16); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .primary, .ghost {
+    font: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .primary {
+    width: 100%;
+    min-height: 54px;
+    margin-top: 6px;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 700;
+  }
+  .primary:hover { background: var(--accent-dark); }
+  .primary:disabled { opacity: .55; cursor: default; }
+  .ghost {
+    min-height: 48px;
+    margin-top: 12px;
+    padding: 10px 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .ghost:disabled { opacity: .55; cursor: default; }
+  .error {
+    margin: 12px 0 4px;
+    padding: 10px 12px;
+    border: 1px solid #f0c4c0;
+    border-radius: 8px;
+    background: #fdf1f0;
+    color: var(--danger);
+    font-weight: 600;
+  }
+  .error[hidden], section[hidden] { display: none; }
+  #done { text-align: center; padding: 8px 0 4px; }
+  #done .tick {
+    width: 64px; height: 64px; margin: 0 auto 10px;
+    border-radius: 50%;
+    background: #e8f4ec; color: #217a3c;
+    font-size: 36px; line-height: 64px; font-weight: 700;
+  }
+  #done h2 { margin: 0 0 6px; font-size: 26px; }
+  #done p { margin: 6px 0; }
+  #countdown { text-align: center; margin: 14px 0 0; }
+  footer { text-align: center; color: var(--muted); font-size: 14px; margin-top: 18px; }
+  #demoBar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    padding: 7px 10px; background: var(--accent); color: #fff;
+    text-align: center; font: 600 12px/1.2 system-ui, sans-serif;
+  }
+  @media (max-width: 560px) {
+    body { padding: 16px 12px 80px; }
+    .card { padding: 18px; }
+    .row2 { grid-template-columns: 1fr; gap: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">Field Diary</div>
+    <h1>Machine check-in</h1>
+    <p class="sub">Enter your details and we'll let the office know you're here.</p>
+  </header>
+
+  <main class="card">
+    <section id="step1">
+      <form id="form1" novalidate>
+        <div class="row2">
+          <label><span>First name</span><input id="first" name="first" autocomplete="off" autocapitalize="words" required></label>
+          <label><span>Surname</span><input id="surname" name="surname" autocomplete="off" autocapitalize="words" required></label>
+        </div>
+        <label><span>Mobile number</span><input id="mobile" name="mobile" type="tel" inputmode="tel" autocomplete="off" required></label>
+        <label><span>Email address</span><input id="email" name="email" type="email" inputmode="email" autocomplete="off" autocapitalize="none" required></label>
+        <label><span>Address</span><input id="address" name="address" autocomplete="off" autocapitalize="words" required></label>
+        <label><span>Postcode</span><input id="postcode" name="postcode" autocomplete="off" autocapitalize="characters" required></label>
+        <div id="error1" class="error" role="alert" hidden></div>
+        <button class="primary" id="checkinBtn" type="submit">Check in</button>
+      </form>
+    </section>
+
+    <section id="step3" hidden>
+      <div id="done"></div>
+      <p id="countdown" class="sub"></p>
+      <button class="ghost" id="againBtn" type="button">Start again</button>
+    </section>
+  </main>
+
+  <footer>If you need help, please ask a member of staff.</footer>
+</div>
+<div id="demoBar" hidden>DEMO MODE - sample data, nothing is saved. Refresh to reset.</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
+<script>
+(function () {
+  "use strict";
+
+  var SUPABASE_URL = "https://jejzwjtydmrrabxyyaol.supabase.co";
+  var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Implanp3anR5ZG1ycmFieHl5YW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4MDU1NjgsImV4cCI6MjEwNTM4MTU2OH0.Mt00WPuDTMcZN7hzB8Hqrc_VwAHrNDiwVnut8IAhf0M";
+  var demoParam = new URLSearchParams(location.search).get("demo");
+  var DEMO = demoParam === "1"
+    || (demoParam !== "0" && (location.protocol === "file:" || location.hostname === "localhost"));
+  var RESET_SECS = new URLSearchParams(location.search).get("reset") === "0" ? 0 : 30;
+  var sb = null;
+  var busy = false;
+  var resetTimer = null;
+  var countdownTimer = null;
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function setError(id, msg) {
+    var e = $(id);
+    if (!e) return;
+    e.textContent = msg || "";
+    e.hidden = !msg;
+  }
+  function clearErrors() { setError("error1", ""); }
+  function step(n) { $("step1").hidden = n !== 1; $("step3").hidden = n !== 3; }
+  function focusEl(id) { setTimeout(function () { var e = $(id); if (e) e.focus(); }, 40); }
+
+  function readForm() {
+    return {
+      first: $("first").value.trim(),
+      surname: $("surname").value.trim(),
+      mobile: $("mobile").value.trim(),
+      email: $("email").value.trim(),
+      address: $("address").value.trim(),
+      postcode: $("postcode").value.trim()
+    };
+  }
+  function formError(d) {
+    if (!d.first || !d.surname) return "Please enter your first name and surname.";
+    if (!d.mobile) return "Please enter your mobile number.";
+    if (!d.email || !/^\S+@\S+\.\S+$/.test(d.email)) return "Please enter a valid email address.";
+    if (!d.address) return "Please enter your address.";
+    if (!d.postcode) return "Please enter your postcode.";
+    return "";
+  }
+  function friendly(e) {
+    var msg = String((e && e.message) || e || "");
+    if (/failed to fetch|networkerror|network request failed|load failed/i.test(msg)) {
+      return "No connection. Please ask a member of staff.";
+    }
+    return "Something went wrong. Please ask a member of staff.";
+  }
+  function dataError(data) {
+    var code = data && data.error;
+    if (code === "missing") return "Please check every box and try again.";
+    if (code === "email") return "Please check your email address and try again.";
+    if (code === "long") return "One of the answers is too long. Please check and try again.";
+    return "That check-in didn't save. Please ask a member of staff.";
+  }
+  function setBusy(on, label) {
+    busy = on;
+    var btn = $("checkinBtn");
+    if (!btn) return;
+    btn.disabled = on;
+    if (label && label.checkin) btn.textContent = label.checkin;
+  }
+
+  // ---------- demo data (only with ?demo=1) ----------
+  var demoDb = { checkins: [] };
+  function demoRpc(name, a) {
+    if (name === "fd_checkin_submit") {
+      var d = {
+        first: a.p_first_name, surname: a.p_surname, mobile: a.p_mobile,
+        email: a.p_email, address: a.p_address, postcode: a.p_postcode
+      };
+      if (!d.first || !d.surname || !d.mobile || !d.email || !d.address || !d.postcode) {
+        return { data: { ok: false, error: "missing" }, error: null };
+      }
+      if (!/^\S+@\S+\.\S+$/.test(d.email)) {
+        return { data: { ok: false, error: "email" }, error: null };
+      }
+      demoDb.checkins.push(Object.assign({ created_at: new Date().toISOString() }, d));
+      return { data: { ok: true }, error: null };
+    }
+    return { data: null, error: { message: "unknown function" } };
+  }
+  function rpc(name, args) {
+    if (DEMO) return Promise.resolve(demoRpc(name, args));
+    return sb.rpc(name, args);
+  }
+
+  // ---------- steps ----------
+  function submitCheckin() {
+    if (busy) return;
+    clearErrors();
+    var d = readForm();
+    var err = formError(d);
+    if (err) {
+      setError("error1", err);
+      focusEl(!d.first ? "first" : !d.surname ? "surname" : !d.mobile ? "mobile" : !d.email ? "email" : !d.address ? "address" : "postcode");
+      return;
+    }
+    setBusy(true, { checkin: "Checking in..." });
+    rpc("fd_checkin_submit", {
+      p_first_name: d.first, p_surname: d.surname, p_mobile: d.mobile,
+      p_email: d.email, p_address: d.address, p_postcode: d.postcode
+    }).then(function (res) {
+      if (res.error) throw res.error;
+      if (!res.data || res.data.ok !== true) { setError("error1", dataError(res.data)); return; }
+      showDone(d);
+    }).catch(function (e) {
+      setError("error1", friendly(e));
+    }).then(function () {
+      setBusy(false, { checkin: "Check in" });
+    });
+  }
+
+  function showDone(d) {
+    $("done").innerHTML =
+      '<div class="tick">&#10003;</div>' +
+      "<h2>Thank you, " + esc(d.first) + "</h2>" +
+      "<p>You're checked in.</p>" +
+      '<p class="sub">Your details are with the office.</p>' +
+      "<p>The office has been told.</p>";
+    step(3);
+    if (RESET_SECS > 0) startReset(RESET_SECS);
+  }
+
+  function startReset(secs) {
+    clearTimers();
+    var left = secs;
+    $("countdown").textContent = "Starting again in " + left + " seconds.";
+    countdownTimer = setInterval(function () {
+      left -= 1;
+      if (left <= 0) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+        startAgain();
+        return;
+      }
+      $("countdown").textContent = "Starting again in " + left + " seconds.";
+    }, 1000);
+    resetTimer = setTimeout(startAgain, secs * 1000);
+  }
+  function clearTimers() {
+    if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  }
+
+  function startAgain() {
+    clearTimers();
+    clearErrors();
+    ["first", "surname", "mobile", "email", "address", "postcode"].forEach(function (id) {
+      var e = $(id); if (e) e.value = "";
+    });
+    $("done").innerHTML = "";
+    $("countdown").textContent = "";
+    setBusy(false, { checkin: "Check in" });
+    step(1);
+    focusEl("first");
+  }
+
+  // ---------- wiring ----------
+  $("form1").addEventListener("submit", function (e) { e.preventDefault(); submitCheckin(); });
+  $("againBtn").addEventListener("click", startAgain);
+
+  if (DEMO) {
+    $("demoBar").hidden = false;
+  } else if (window.supabase) {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+  } else {
+    setError("error1", "Check-in is unavailable. Please ask a member of staff.");
+    $("checkinBtn").disabled = true;
+  }
+
+  step(1);
+  focusEl("first");
+})();
+</script>
+</body>
+</html>
