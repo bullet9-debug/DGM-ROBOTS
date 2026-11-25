@@ -1738,11 +1738,10 @@
     const excludeId = document.getElementById("jobId").value || null;
     const dayStart = timeToMins(state.workDayStart), dayEnd = timeToMins(state.workDayEnd);
     const today = fmtISODate(new Date());
-    const monday = startOfWeek(new Date());
     const out = [];
-    for (let i = 0; i < 21; i++) {
-      const d = addDays(monday, i);
-      if (d.getDay() === 0 || d.getDay() === 6) continue;
+    let d = startOfDay(new Date());
+    while (out.length < 15) {
+      if (d.getDay() === 0 || d.getDay() === 6) { d = addDays(d, 1); continue; }
       const iso = fmtISODate(d);
       const past = iso < today;
       const busy = dayBusyIntervals(lane, iso, excludeId);
@@ -1752,9 +1751,11 @@
       const level = past || late || slot == null ? "red"
         : spare < DATE_PICKER_AMBER_MINS ? "amber" : "green";
       out.push({ iso, day: d.getDate(), past, slot, spare, level });
+      d = addDays(d, 1);
     }
     return out;
   }
+  let dpRollTimer = null;
   function renderDatePicker() {
     const el = document.getElementById("datePicker");
     if (!el) return;
@@ -1777,6 +1778,13 @@
         return `<button type="button" class="${cls}" data-date="${d.iso}" ${free ? "" : "disabled"} title="${tip}">${d.day}</button>`;
       }).join("") + `</div>` +
       `<div class="dp-legend"><span><i class="green"></i>roomy</span><span><i class="amber"></i>tight</span><span><i class="red"></i>full</span></div>`;
+    if (dpRollTimer) { clearTimeout(dpRollTimer); dpRollTimer = null; }
+    const overlay = el.closest(".overlay");
+    if (overlay && overlay.classList.contains("open")) {
+      const now = new Date();
+      const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 2);
+      dpRollTimer = setTimeout(() => { dpRollTimer = null; renderDatePicker(); }, nextDay - now);
+    }
   }
   function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate()+n); return x; }
   function startOfWeek(d) { const x = startOfDay(d); const day = (x.getDay()+6)%7; return addDays(x, -day); }
